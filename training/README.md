@@ -29,9 +29,3 @@
 	cp prey_data.yaml prey_dataset/data.yaml
 
 	python train.py
-
-	# find the last generated weights and copy to build context
-	find runs -type f -name best.pt -exec stat -f "%m %N" {} + \
-	  | sort -rn \
-	  | head -n 1 \
-	  | cut -d' ' -f2- | xargs -I{} cp {} ../prey_runs/yolo11_prey/weights

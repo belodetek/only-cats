@@ -49,7 +49,7 @@ COPY camera_receiver.py config.py flasher.py ./
 
 COPY firmware_bin/firmware_sketch.ino.bin firmware_bin/
 
-COPY prey_runs/yolo11_prey/weights/best_openvino_model/ ./prey_runs/yolo11_prey/weights/best_openvino_model/
+COPY training/runs/detect/prey_runs ./
 
 EXPOSE 8000
 
