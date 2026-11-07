@@ -8,10 +8,6 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /build
 
 COPY requirements.txt .
@@ -19,7 +15,6 @@ COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel && \
     pip wheel \
         --wheel-dir=/wheels \
-        --extra-index-url https://download.pytorch.org/whl/cpu \
         -r requirements.txt
 
 # optionally remove GUI OpenCV wheel (if pulled as a transitive dependency)
@@ -45,9 +40,16 @@ WORKDIR /app
 
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir --no-index --no-deps --find-links=/wheels /wheels/* \
-    && rm -rf /wheels
+    && rm -rf /wheels \
+    && find /usr/local/lib/python3.12/site-packages/ -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.12/site-packages/ -type d -name "test" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.12/site-packages/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
-COPY camera_receiver.py config.py flasher.py prey_runs firmware_bin ./
+COPY camera_receiver.py config.py flasher.py ./
+
+COPY firmware_bin/firmware_sketch.ino.bin firmware_bin/
+
+COPY prey_runs/yolo11_prey/weights/best_openvino_model/ ./prey_runs/yolo11_prey/weights/best_openvino_model/
 
 EXPOSE 8000
 

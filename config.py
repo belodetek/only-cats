@@ -11,8 +11,9 @@ camera_password = os.getenv("CAMERA_PASSWORD")
 camera_channel = int(os.getenv("CAMERA_CHANNEL", "0"))
 
 model_weights_path = os.getenv(
-    "MODEL_WEIGHTS_PATH", "prey_runs/yolo11_prey/weights/best.pt"
+    "MODEL_WEIGHTS_PATH", "prey_runs/yolo11_prey/weights/best_openvino_model"
 )
+
 conf_threshold = float(os.getenv("CONF_THRESHOLD", "0.55"))
 target_classes = os.getenv("TARGET_CLASSES", "prey")
 target_classes = {item.strip() for item in target_classes.split(",") if item.strip()}

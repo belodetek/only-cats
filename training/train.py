@@ -28,6 +28,7 @@ def main():
     print(f"{ results = }")
 
     model = YOLO("runs/detect/prey_runs/yolo11_prey/weights/best.pt")
+    model.export(format="openvino")
     print("OK")
 
 
