@@ -19,6 +19,10 @@ target_classes = {item.strip() for item in target_classes.split(",") if item.str
 
 serial_port = os.getenv("SERIAL_PORT", "/dev/ttyACM0")
 baud_rate = int(os.getenv("BAUD_RATE", "115200"))
+
+# Seeed XIAO ESP32-C3: esp32c3
+# Seeed XIAO ESP32-S3: esp32s3
+# Seeed XIAO ESP32-C6: esp32c6
 esp_chip = os.getenv("ESP_CHIP", "esp32c6")
 esp_flash_baud = int(os.getenv("ESP_FLASH_BAUD", "460800"))
 firmware_bin_path = os.getenv(
