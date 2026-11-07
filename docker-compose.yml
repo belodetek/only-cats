@@ -14,6 +14,9 @@ services:
     network_mode: host
 #     devices:
 #     - /dev/ttyACM0:/dev/ttyACM0
+    environment:
+      - YOLO_VERBOSE=False
+      - ULTRALYTICS_AUTOINSTALL=False
     group_add:
     - dialout
     healthcheck:
