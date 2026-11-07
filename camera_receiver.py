@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from json.decoder import JSONDecodeError
 from typing import Optional
 
-# pylint: disable=import-error,unused-import,wildcard-import,unused-wildcard-import
+# pylint: disable=import-error
 import cv2
 import httpx
 import numpy as np
@@ -21,12 +21,16 @@ import serial
 from fastapi import BackgroundTasks, FastAPI, Request
 from ultralytics import YOLO
 
-from config import *
+import config
+from flasher import auto_flash_esp32_if_updated
 
-# pylint: enable=import-error,unused-import,wildcard-import,unused-wildcard-import
+# pylint: enable=import-error
 
-logging.basicConfig(format="%(asctime)s - %(message)s", encoding="utf-8", level=level)
-logger = logging.getLogger(logger_name)
+
+logging.basicConfig(
+    format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
+)
+logger = logging.getLogger(config.logger_name)
 
 
 class ESP32SerialController:
@@ -70,9 +74,9 @@ class ESP32SerialController:
                         logger.debug("Lock keepalive sent: 'L'")
                     except serial.SerialException as exc:
                         logger.error("Serial write failed: %s", exc)
-            time.sleep(command_interval_sec)
+            time.sleep(config.command_interval_sec)
 
-    def trigger_lock(self, duration: float = lockout_duration_sec) -> None:
+    def trigger_lock(self, duration: float = config.lockout_duration_sec) -> None:
         """Engage the lock and send 'L' for the specified duration."""
         with self.lock:
             new_target = time.time() + duration
@@ -102,6 +106,7 @@ class ESP32SerialController:
         logger.info("ESP32 serial connection closed.")
 
 
+# pylint: disable=too-few-public-methods
 @dataclass
 class AppState:
     """Encapsulates shared runtime dependencies without requiring global variables."""
@@ -111,20 +116,39 @@ class AppState:
     http_client: Optional[httpx.AsyncClient] = None
 
 
+# pylint: enable=too-few-public-methods
+
+
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     """Context manager handling service startup and shutdown events."""
+    logger.info("Initializing NUC vision receiver...")
     state = AppState()
 
-    state.controller = ESP32SerialController(serial_port, baud_rate)
+    # Flash ESP32 over serial bootloader if binary has updated
+    auto_flash_esp32_if_updated(
+        port=config.serial_port,
+        chip=getattr(config, "esp_chip", "esp32c3"),
+        baud=getattr(config, "esp_flash_baud", 460800),
+        bin_path=getattr(
+            config, "firmware_bin_path", "firmware_bin/firmware_sketch.ino.bin"
+        ),
+        hash_file=getattr(
+            config, "firmware_hash_file", "firmware_bin/.last_flashed_hash"
+        ),
+    )
+
+    state.controller = ESP32SerialController(config.serial_port, config.baud_rate)
     state.controller.connect()
     state.controller.start_worker()
 
-    if os.path.exists(model_weights_path):
-        state.model = YOLO(model_weights_path)
-        logger.info("Loaded custom weights from %s", model_weights_path)
+    if os.path.exists(config.model_weights_path):
+        state.model = YOLO(config.model_weights_path)
+        logger.info("Loaded custom weights from %s", config.model_weights_path)
     else:
-        logger.error("Weights file missing at %s! Check path.", model_weights_path)
+        logger.error(
+            "Weights file missing at %s! Check path.", config.model_weights_path
+        )
 
     state.http_client = httpx.AsyncClient(timeout=4.0, verify=False)
     app_instance.state.deps = state
@@ -138,7 +162,7 @@ async def lifespan(app_instance: FastAPI):
     logger.info("Server shutdown finalized.")
 
 
-app = FastAPI(title=app_name, lifespan=lifespan)
+app = FastAPI(title=config.app_name, lifespan=lifespan)
 
 
 async def fetch_and_evaluate(state: AppState) -> None:
@@ -150,8 +174,10 @@ async def fetch_and_evaluate(state: AppState) -> None:
         return
 
     snap_url = (
-        f"{camera_url}/cgi-bin/api.cgi?"
-        f"cmd=Snap&channel={camera_channel}&user={camera_user}&password={camera_password}"
+        f"{config.camera_url}/cgi-bin/api.cgi?"
+        f"cmd=Snap&channel={config.camera_channel}&"
+        f"user={config.camera_user}&"
+        f"password={config.camera_password}"
     )
 
     try:
@@ -173,7 +199,9 @@ async def fetch_and_evaluate(state: AppState) -> None:
             return
 
         t1 = time.perf_counter()
-        results = state.model.predict(source=img, conf=conf_threshold, verbose=False)
+        results = state.model.predict(
+            source=img, conf=config.conf_threshold, verbose=False
+        )
         infer_ms = (time.perf_counter() - t1) * 1000
 
         if results and len(results[0].boxes) > 0:
@@ -190,18 +218,18 @@ async def fetch_and_evaluate(state: AppState) -> None:
                 infer_ms,
             )
 
-            if any(name in target_classes for name in detected_classes):
+            if any(name in config.target_classes for name in detected_classes):
                 logger.warning(
                     ">>> PREY DETECTED! Activating lock for %ds...",
-                    int(lockout_duration_sec),
+                    int(config.lockout_duration_sec),
                 )
-                state.controller.trigger_lock(lockout_duration_sec)
+                state.controller.trigger_lock(config.lockout_duration_sec)
             else:
                 logger.info("Objects detected, but no prey criteria met.")
         else:
             logger.info(
                 "No targets above %.0f%% confidence (Fetch: %.1fms, Infer: %.1fms).",
-                conf_threshold * 100,
+                config.conf_threshold * 100,
                 fetch_ms,
                 infer_ms,
             )

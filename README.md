@@ -1,5 +1,34 @@
 # onlyCat(s)
 
+## deploy
+
+### FastAPI
+
+    balena push org/fleet
+
+### ESP32
+
+#### for upload
+> initial flash (or manually)
+
+	arduino-cli config init
+	arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+	arduino-cli core update-index
+	arduino-cli core install esp32:esp32
+
+	arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 \
+	  --build-property "build.extra_flags=-DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1" \
+	  firmware_sketch
+
+	arduino-cli upload -p /dev/ttyACM0 --fqbn esp32:esp32:XIAO_ESP32C6 firmware_sketch
+
+#### build binary
+> for automatic flashing
+
+	arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 \
+	  --build-property "build.extra_flags=-DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1" \
+	  --output-dir ./firmware_bin firmware_sketch
+
 ## train
 
 	python3 -m venv .venv

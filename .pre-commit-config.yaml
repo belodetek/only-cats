@@ -10,7 +10,7 @@ repos:
       - id: check-xml
       - id: check-added-large-files
         args: ["--maxkb=1000"]
-        exclude: ^prey_runs/.*(\.pt|\.onnx|\.bin)$
+        exclude: ^(prey_runs/.*(\.pt|\.onnx|\.bin)|firmware(_bin)?/.*(\.bin|\.elf|\.map))$
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: detect-private-key
