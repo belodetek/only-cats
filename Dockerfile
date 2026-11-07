@@ -45,13 +45,13 @@ WORKDIR /app
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir --no-index --no-deps --find-links=/wheels /wheels/* \
     && rm -rf /wheels \
-    && find /usr/local/lib/python3.12/site-packages/ -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true \
-    && find /usr/local/lib/python3.12/site-packages/ -type d -name "test" -exec rm -rf {} + 2>/dev/null || true \
-    && find /usr/local/lib/python3.12/site-packages/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    && find /usr/local/lib/python3.14/site-packages/ -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.14/site-packages/ -type d -name "test" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.14/site-packages/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 COPY camera_receiver.py config.py flasher.py training/runs/latest ./
 
-COPY firmware_bin/firmware_sketch.ino.bin firmware_bin/
+COPY firmware/bin/firmware_sketch.ino.bin flash/
 
 EXPOSE 8000
 

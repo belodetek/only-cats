@@ -24,10 +24,7 @@ baud_rate = int(os.getenv("BAUD_RATE", "115200"))
 # Seeed XIAO ESP32-C6: esp32c6
 esp_chip = os.getenv("ESP_CHIP", "esp32c6")
 esp_flash_baud = int(os.getenv("ESP_FLASH_BAUD", "460800"))
-firmware_bin_path = os.getenv(
-    "FIRMWARE_BIN_PATH", "firmware_bin/firmware_sketch.ino.bin"
-)
-firmware_hash_file = os.getenv("FIRMWARE_HASH_FILE", "firmware_bin/.last_flashed_hash")
+firmware_bin_path = os.getenv("FIRMWARE_BIN_PATH", "flash/firmware_sketch.ino.bin")
 
 command_interval_sec = float(os.getenv("COMMAND_INTERVAL_SEC", "1.0"))
 lockout_duration_sec = float(os.getenv("LOCKOUT_DURATION_SEC", "300.0"))
