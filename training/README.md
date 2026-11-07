@@ -5,10 +5,10 @@
 	source .venv/bin/activate
 
 	pip install --upgrade pip
-	pip install ultralytics torch torchvision numpy
+	pip install -r requirements.txt
 
 	# https://universe.roboflow.com/flappie/prey-detection
-	unzip -q Prey-detection.v1i.yolov11.zip -d training/prey_dataset
+	unzip -q Prey-detection.v1i.yolov11.zip -d prey_dataset
 	# training
 	# ├── prey_dataset
 	# │   ├── data.yaml
@@ -23,9 +23,8 @@
 	# │   └── valid
 	# │       ├── images
 	# │       └── labels
+	# ├── prey_data.yaml
 	# └── train.py
-
-    pushd training
 
 	cp prey_data.yaml prey_dataset/data.yaml
 
