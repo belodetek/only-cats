@@ -18,7 +18,9 @@ services:
       - YOLO_VERBOSE=False
       - ULTRALYTICS_AUTOINSTALL=False
     group_add:
-    - dialout
+      - dialout
+    volumes:
+      - resin-data:/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/health || exit 1"]
       interval: 10s

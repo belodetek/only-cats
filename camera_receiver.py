@@ -1,7 +1,9 @@
-"""Reolink camera snapshot receiver and ESP32 USB lock controller.
+"""Reolink camera snapshot receiver and ESP32 door lock controller.
 
 Evaluates incoming camera motion webhooks, runs YOLO inference to detect
-prey, and commands the ESP32 to energize the lock ONLY during prey lockout.
+prey, commands the ESP32 to energize the lock ONLY during prey lockout,
+and persists positive prey detection images and YOLO annotation labels
+to /data/images and /data/labels for model fine-tuning and retraining.
 """
 
 import logging
@@ -10,6 +12,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from json.decoder import JSONDecodeError
 from typing import Optional
 
@@ -20,12 +23,12 @@ import numpy as np
 import serial
 from fastapi import BackgroundTasks, FastAPI, Request
 from ultralytics import YOLO
+from ultralytics.engine.results import Results
 
 import config
 from flasher import auto_flash_esp32_if_updated
 
 # pylint: enable=import-error
-
 
 logging.basicConfig(
     format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
@@ -125,6 +128,9 @@ async def lifespan(app_instance: FastAPI):
     logger.info("Initializing NUC vision receiver...")
     state = AppState()
 
+    os.makedirs(config.images_dir, exist_ok=True)
+    os.makedirs(config.labels_dir, exist_ok=True)
+
     # Flash ESP32 over serial bootloader if binary has updated or chip is unprovisioned
     auto_flash_esp32_if_updated(
         port=config.serial_port,
@@ -160,6 +166,46 @@ async def lifespan(app_instance: FastAPI):
 
 
 app = FastAPI(title=config.app_name, lifespan=lifespan)
+
+
+# pylint: disable=too-many-locals
+def _persist_training_pair(img: np.ndarray, result: Results) -> None:
+    """Persist raw image and normalized YOLO bounding boxes."""
+    try:
+        base_name = f"prey_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        img_path = os.path.join(config.images_dir, f"{base_name}.jpg")
+        label_path = os.path.join(config.labels_dir, f"{base_name}.txt")
+
+        # pylint: disable=no-member
+        success = cv2.imwrite(img_path, img)
+        # pylint: enable=no-member
+
+        if not success:
+            logger.error("Failed to write image snapshot to %s", img_path)
+            return
+
+        label_lines: list[str] = []
+        if result.boxes is not None:
+            # xywhn provides normalized (x_center, y_center, width, height) in range [0.0, 1.0]
+            boxes_xywhn = result.boxes.xywhn.cpu().numpy()
+            classes = result.boxes.cls.cpu().numpy().astype(int)
+
+            for cls_id, box in zip(classes, boxes_xywhn):
+                x_c, y_c, width, height = box
+                label_lines.append(
+                    f"{cls_id} {x_c:.6f} {y_c:.6f} {width:.6f} {height:.6f}\n"
+                )
+
+        with open(label_path, "w", encoding="utf-8") as label_file:
+            label_file.writelines(label_lines)
+
+        logger.info("Persisted training pair: %s and %s", img_path, label_path)
+
+    except OSError as exc:
+        logger.error("Filesystem error while persisting training pair: %s", exc)
+
+
+# pylint: disable=too-many-locals
 
 
 async def fetch_and_evaluate(state: AppState) -> None:
@@ -202,10 +248,11 @@ async def fetch_and_evaluate(state: AppState) -> None:
         infer_ms = (time.perf_counter() - t1) * 1000
 
         if results and len(results[0].boxes) > 0:
+            top_result = results[0]
             detected_classes = [
-                state.model.names[int(cls_id)] for cls_id in results[0].boxes.cls
+                state.model.names[int(cls_id)] for cls_id in top_result.boxes.cls
             ]
-            confidences = [float(conf) for conf in results[0].boxes.conf]
+            confidences = [float(conf) for conf in top_result.boxes.conf]
             detections = list(zip(detected_classes, confidences))
 
             logger.info(
@@ -221,6 +268,7 @@ async def fetch_and_evaluate(state: AppState) -> None:
                     int(config.lockout_duration_sec),
                 )
                 state.controller.trigger_lock(config.lockout_duration_sec)
+                _persist_training_pair(img, top_result)
             else:
                 logger.info("Objects detected, but no prey criteria met.")
         else:

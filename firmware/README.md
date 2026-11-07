@@ -18,11 +18,12 @@
 
 	arduino-cli compile --fqbn ${FQBN} \
 	  --build-property "build.extra_flags=-DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1" \
-	  --output-dir bin .
+	  --output-dir bin firmware_sketch
 
 ## upload
 > initial flash (or manually)
 
 	arduino-cli upload -p /dev/ttyACM0 --fqbn ${FQBN} firmware_sketch
+
 
 [XIAO ESP32-C6]: https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html
