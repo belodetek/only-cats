@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build Environment
 # ==========================================
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -23,7 +23,7 @@ RUN rm -f /wheels/opencv_python-[0-9]*.whl || true
 # ==========================================
 # Stage 2: Minimal Runtime Image
 # ==========================================
-FROM python:3.12-slim-bookworm AS runner
+FROM python:3.14-slim-bookworm AS runner
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
