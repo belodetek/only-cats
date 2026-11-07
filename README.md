@@ -4,7 +4,7 @@
 Multi-arch project deployed to balenaCloud using Flowzone with default AMD64 arch.
 
 ## ESP32
-> examples use `[XIAO ESP32-C6]` micro-controller, adjust config for other variants
+> examples use [XIAO ESP32-C6] micro-controller, adjust config for other variants
 
 ### for upload
 > initial flash (or manually)
@@ -33,6 +33,7 @@ Multi-arch project deployed to balenaCloud using Flowzone with default AMD64 arc
 	  --output-dir ./firmware_bin firmware_sketch
 
 ## train
+> on Apple M1 Pro GPU
 
 	python3 -m venv .venv
 	source .venv/bin/activate
