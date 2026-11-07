@@ -3,6 +3,7 @@
 
 ## camera/webhooks event architecture
 
+```text
     +--------------------+                +-----------------------------------------+
     | REOLINK PoE CAMERA |                |                INTEL NUC                |
     |  (IP / Local)      |                |          (FastAPI on Port 8000)         |
@@ -57,9 +58,11 @@
                              |    /data/images/*.jpg |
                              |    /data/labels/*.txt |
                              +-----------------------+
+```
 
 ## physical(ish) wiring diagram
 
+```text
     +---------------+
     |   INTEL NUC   |
     +-------+-------+
@@ -100,6 +103,7 @@
                                    |         24V LOCK SOLENOID         |
                                    |        NO - normally open         |
                                    +-----------------------------------+
+```
 
 ## BoM
 
