@@ -4,7 +4,7 @@
 Multi-arch project deployed to balenaCloud using Flowzone with default AMD64 arch.
 
 ## ESP32
-> examples use Seed ESP32 C6 micro-controller, adjust config for other variants
+> examples use `[XIAO ESP32-C6]` micro-controller, adjust config for other variants
 
 ### for upload
 > initial flash (or manually)
@@ -48,3 +48,6 @@ Multi-arch project deployed to balenaCloud using Flowzone with default AMD64 arc
 	echo "path: ./prey_dataset" >> prey_dataset/data.json
 
 	python train.py
+
+
+[XIAO ESP32-C6]: https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html
