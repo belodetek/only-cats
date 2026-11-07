@@ -20,14 +20,14 @@ def main():
         imgsz=640,
         batch=16,  # if unified memory is constrained, drop to 8
         device="mps",  # explicitly enables Apple Silicon GPU
-        workers=4,  # lower workers avoid macOS multiprocessing locks
+        workers=2,  # lower workers avoid macOS multiprocessing locks
         plots=True,
         project="prey_runs",
         name="yolo11_prey",
     )
     print(f"{ results = }")
 
-    model = YOLO("prey_runs/yolo11_prey/weights/best.pt")
+    model = YOLO("runs/detect/prey_runs/yolo11_prey/weights/best.pt")
     print("OK")
 
 
