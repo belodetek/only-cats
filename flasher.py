@@ -85,7 +85,7 @@ def get_local_descriptor(bin_path: str) -> Optional[AppDescriptor]:
 
 
 def read_chip_descriptor(
-    port: str, chip: str = "esp32c3", baud: int = 460800
+    port: str, chip: str = "esp32c6", baud: int = 460800
 ) -> Optional[AppDescriptor]:
     """Read descriptor segment off physical ESP32 flash without rewriting firmware."""
     with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as tmp_file:
@@ -166,7 +166,7 @@ def flash_firmware(port: str, chip: str, baud: int, bin_path: str) -> bool:
 
 def auto_flash_esp32_if_updated(
     port: str,
-    chip: str = "esp32c3",
+    chip: str = "esp32c6",
     baud: int = 460800,
     bin_path: str = DEFAULT_BIN_PATH,
 ) -> bool:
