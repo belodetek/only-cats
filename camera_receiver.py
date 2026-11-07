@@ -208,7 +208,9 @@ def _persist_training_pair(img: np.ndarray, result: Results) -> None:
 # pylint: disable=too-many-locals
 
 
-async def fetch_and_evaluate(state: AppState) -> None:
+async def fetch_and_evaluate(
+    state: AppState, background_tasks: BackgroundTasks
+) -> None:
     """Retrieve snapshot from Reolink camera, run YOLO, and handle lock state."""
     if not state.model or not state.http_client or not state.controller:
         logger.error(
@@ -268,7 +270,7 @@ async def fetch_and_evaluate(state: AppState) -> None:
                     int(config.lockout_duration_sec),
                 )
                 state.controller.trigger_lock(config.lockout_duration_sec)
-                _persist_training_pair(img, top_result)
+                background_tasks.add_task(_persist_training_pair, img, top_result)
             else:
                 logger.info("Objects detected, but no prey criteria met.")
         else:
