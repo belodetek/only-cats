@@ -30,7 +30,7 @@ from flasher import auto_flash_esp32_if_updated
 logging.basicConfig(
     format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
 )
-logger = logging.getLogger(config.logger_name)
+logger = logging.getLogger(config.app_name)
 
 
 class ESP32SerialController:
@@ -125,16 +125,13 @@ async def lifespan(app_instance: FastAPI):
     logger.info("Initializing NUC vision receiver...")
     state = AppState()
 
-    # Flash ESP32 over serial bootloader if binary has updated
+    # Flash ESP32 over serial bootloader if binary has updated or chip is unprovisioned
     auto_flash_esp32_if_updated(
         port=config.serial_port,
         chip=getattr(config, "esp_chip", "esp32c3"),
         baud=getattr(config, "esp_flash_baud", 460800),
         bin_path=getattr(
             config, "firmware_bin_path", "firmware_bin/firmware_sketch.ino.bin"
-        ),
-        hash_file=getattr(
-            config, "firmware_hash_file", "firmware_bin/.last_flashed_hash"
         ),
     )
 

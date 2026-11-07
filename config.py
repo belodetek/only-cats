@@ -3,7 +3,6 @@
 import os
 
 level = os.getenv("LOG_LEVEL", "INFO")
-logger_name = os.getenv("LOGGER_NAME", "hello-dimitry")
 app_name = os.getenv("APP_NAME", "iwatch-ulock")
 
 camera_url = os.getenv("CAMERA_URL")  # http(s)://10.42.84.168
