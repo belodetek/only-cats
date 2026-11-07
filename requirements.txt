@@ -4,7 +4,7 @@ httpx>=0.28.1
 numpy>2.5.4
 opencv-python-headless>=5.0.0
 pyserial>=3.5
-# e.g. 2.15.0+cu132 if using Nvidia CUDA (Compute Unified Device Architecture) GPU support
+# .. or +cu132 if using Nvidia CUDA (Compute Unified Device Architecture) GPU support 13.2
 torch>=2.15.0+cpu
 torchvision>=0.29.2+cpu
 ultralytics>=8.4.204
