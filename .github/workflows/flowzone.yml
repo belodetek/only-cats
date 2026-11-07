@@ -19,7 +19,7 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
     with:
-      cloudflare_website: "only-cats"
+      cloudflare_website: only-cats
       docusaurus_website: true
       balena_slugs: |
         carate_road/only-cats-amd64
