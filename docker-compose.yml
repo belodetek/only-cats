@@ -1,0 +1,24 @@
+version: '2.4'
+
+volumes:
+  resin-data: {}
+
+x-common: &common
+  tty: true
+  restart: unless-stopped
+
+services:
+  iwatch-ulock:
+    build: .
+    <<: *common
+    network_mode: host
+#     devices:
+#     - /dev/ttyACM0:/dev/ttyACM0
+    group_add:
+    - dialout
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
