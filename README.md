@@ -1,6 +1,18 @@
 # onlyCat(s)
 > Border Services Agency, preventing contraband entering the catflap.
 
+## BoM
+
+* [REOLINK PoE Security Camera RLC-810A]
+* [PoE injector]
+* [Seeed Studio XIAO ESP32-C6]
+* [5V single channel relay (opto-coupler) H/L trigger jumper]
+* [24VDC solenoid lock NO]
+* 1N4007 diode
+* 2200uF 50V electrolytic capacitor
+* Good quality, democratically priced and sustainably sourced 24VDC power supply
+* Intel NUC or compatible AMD64 compute
+
 ## camera/webhooks event architecture
 
 ```text
@@ -104,19 +116,6 @@
                                 |        NO - normally open         |
                                 +-----------------------------------+
 ```
-
-## BoM
-
-* [REOLINK PoE Security Camera RLC-810A]
-* [PoE injector]
-* [Seeed Studio XIAO ESP32-C6]
-* [5V single channel relay (opto-coupler) H/L trigger jumper]
-* [24VDC solenoid lock NO]
-* 1N4007 diode
-* 2200uF 50V electrolytic capacitor
-* Good quality, democratically priced and sustainably sourced 24VDC power supply
-* Intel NUC or compatible AMD64 compute
-
 
 [REOLINK PoE Security Camera RLC-810A]: https://www.amazon.ca/dp/B08MQ61MKN
 [PoE injector]: https://www.amazon.ca/dp/B07PR9CBGL
