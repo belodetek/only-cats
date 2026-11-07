@@ -14,7 +14,7 @@ model_weights_path = os.getenv(
     "MODEL_WEIGHTS_PATH", "prey_runs/yolo11_prey/weights/best.pt"
 )
 conf_threshold = float(os.getenv("CONF_THRESHOLD", "0.55"))
-target_classes = os.getenv("TARGET_CLASSES", "prey,0")
+target_classes = os.getenv("TARGET_CLASSES", "prey")
 target_classes = {item.strip() for item in target_classes.split(",") if item.strip()}
 
 serial_port = os.getenv("SERIAL_PORT", "/dev/ttyACM0")

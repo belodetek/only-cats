@@ -33,22 +33,39 @@ Multi-arch project deployed to balenaCloud using Flowzone with default AMD64 arc
 	  --output-dir ./firmware_bin firmware_sketch
 
 ## train
-> on Apple M1 Pro GPU
 
-	python3 -m venv .venv
+	python3.12 -m venv .venv
 	source .venv/bin/activate
 
 	pip install --upgrade pip
-	pip install ultralytics torch torchvision
-
-	python -c "import torch; print('MPS Available:', torch.backends.mps.is_available())"
+	pip install ultralytics torch torchvision numpy
 
 	# https://universe.roboflow.com/flappie/prey-detection
-	unzip -q Prey-detection.v1i.yolov11.zip -d prey_dataset
+	unzip -q Prey-detection.v1i.yolov11.zip -d training/prey_dataset
+	# training
+	# ├── prey_dataset
+	# │   ├── data.yaml
+	# │   ├── README.dataset.txt
+	# │   ├── README.roboflow.txt
+	# │   ├── test
+	# │   │   ├── images
+	# │   │   └── labels
+	# │   ├── train
+	# │   │   ├── images
+	# │   │   └── labels
+	# │   └── valid
+	# │       ├── images
+	# │       └── labels
+	# └── train.py
 
-	echo "path: ./prey_dataset" >> prey_dataset/data.json
+    pushd training
+
+	cp prey_data.yaml prey_dataset/data.yaml
 
 	python train.py
+
+	# find the last generated weights
+	find ../runs -type f -name best.pt | xargs -I{} cp {} ../prey_runs/yolo11_prey/weights
 
 
 [XIAO ESP32-C6]: https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html
