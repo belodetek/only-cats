@@ -47,7 +47,7 @@ COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir --no-index --no-deps --find-links=/wheels /wheels/* \
     && rm -rf /wheels
 
-COPY camera_receiver.py config.py flasher.py prey_runs firmware_bin .
+COPY camera_receiver.py config.py flasher.py prey_runs firmware_bin ./
 
 EXPOSE 8000
 
