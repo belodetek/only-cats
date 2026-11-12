@@ -5,8 +5,10 @@ import os
 level = os.getenv("LOG_LEVEL", "INFO")
 app_name = os.getenv("APP_NAME", "iwatch-ulock")
 
-camera_url = os.getenv("CAMERA_URL")  # http(s)://10.42.84.168
-camera_user = os.getenv("CAMERA_USER", "admin")
+camera_url = os.getenv(
+    "CAMERA_URL"
+)  # http(s)://10.42.84.168 (from client request if unset)
+camera_user = os.getenv("CAMERA_USER", "admin")  # recommend creating a read-only user
 camera_password = os.getenv("CAMERA_PASSWORD")
 camera_channel = int(os.getenv("CAMERA_CHANNEL", "0"))
 
