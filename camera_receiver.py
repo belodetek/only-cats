@@ -300,7 +300,7 @@ async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -
         pass
 
     deps: AppState = request.app.state.deps
-    background_tasks.add_task(fetch_and_evaluate, deps)
+    background_tasks.add_task(fetch_and_evaluate, deps, background_tasks)
     return {"status": "queued"}
 
 
