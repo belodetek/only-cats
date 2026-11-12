@@ -1,3 +1,5 @@
+# pylint: disable=too-many-locals
+
 """Reolink camera snapshot receiver and ESP32 door lock controller.
 
 Evaluates incoming camera motion webhooks, runs YOLO inference to detect
@@ -168,7 +170,6 @@ async def lifespan(app_instance: FastAPI):
 app = FastAPI(title=config.app_name, lifespan=lifespan)
 
 
-# pylint: disable=too-many-locals
 def _persist_training_pair(img: np.ndarray, result: Results) -> None:
     """Persist raw image and normalized YOLO bounding boxes."""
     try:
@@ -203,9 +204,6 @@ def _persist_training_pair(img: np.ndarray, result: Results) -> None:
 
     except OSError as exc:
         logger.error("Filesystem error while persisting training pair: %s", exc)
-
-
-# pylint: disable=too-many-locals
 
 
 async def fetch_and_evaluate(
@@ -292,12 +290,28 @@ async def fetch_and_evaluate(
 @app.post("/webhook/reolink")
 async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -> dict:
     """Handle incoming motion alert webhooks dispatched by the Reolink camera."""
+    client_host = request.client.host if request.client else "unknown"
+    client_port = request.client.port if request.client else "unknown"
+    headers = dict(request.headers)
+
+    logger.info(
+        "Webhook request from %s:%s | Method: %s | URL: %s | Headers: %s",
+        client_host,
+        client_port,
+        request.method,
+        request.url,
+        headers,
+    )
+
     try:
         payload = await request.json()
         alarm_type = payload.get("alarm", {}).get("type", "Alarm Trigger")
-        logger.info("Webhook event received: %s", alarm_type)
+        logger.info("Webhook event received: %s | Payload: %s", alarm_type, payload)
     except (JSONDecodeError, ValueError, UnicodeDecodeError):
-        pass
+        raw_body = await request.body()
+        logger.info(
+            "Webhook non-JSON body: %s", raw_body.decode("utf-8", errors="replace")
+        )
 
     deps: AppState = request.app.state.deps
     background_tasks.add_task(fetch_and_evaluate, deps, background_tasks)
