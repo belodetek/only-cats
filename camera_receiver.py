@@ -206,8 +206,21 @@ def _persist_training_pair(img: np.ndarray, result: Results) -> None:
         logger.error("Filesystem error while persisting training pair: %s", exc)
 
 
+def _resolve_camera_url(client_host: Optional[str]) -> str:
+    """Build camera base URL from webhook client IP, falling back to config.camera_url."""
+    default_url = config.camera_url
+    if not client_host or client_host == "unknown":
+        return default_url
+    host = f"[{client_host}]" if ":" in client_host else client_host
+    return (
+        f"https://{host}"  # assume HTTPS by default (configure via Reolink web admin)
+    )
+
+
 async def fetch_and_evaluate(
-    state: AppState, background_tasks: BackgroundTasks
+    state: AppState,
+    background_tasks: BackgroundTasks,
+    camera_base_url: str,
 ) -> None:
     """Retrieve snapshot from Reolink camera, run YOLO, and handle lock state."""
     if not state.model or not state.http_client or not state.controller:
@@ -216,8 +229,12 @@ async def fetch_and_evaluate(
         )
         return
 
+    if not camera_base_url:
+        logger.error("Evaluation skipped: camera URL could not be resolved.")
+        return
+
     snap_url = (
-        f"{config.camera_url}/cgi-bin/api.cgi?"
+        f"{camera_base_url}/cgi-bin/api.cgi?"
         f"cmd=Snap&channel={config.camera_channel}&"
         f"user={config.camera_user}&"
         f"password={config.camera_password}"
@@ -290,14 +307,16 @@ async def fetch_and_evaluate(
 @app.post("/webhook/reolink")
 async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -> dict:
     """Handle incoming motion alert webhooks dispatched by the Reolink camera."""
-    client_host = request.client.host if request.client else "unknown"
+    client_host = request.client.host if request.client else None
     client_port = request.client.port if request.client else "unknown"
     headers = dict(request.headers)
+    camera_base_url = _resolve_camera_url(client_host)
 
     logger.info(
-        "Webhook request from %s:%s | Method: %s | URL: %s | Headers: %s",
-        client_host,
+        "Webhook request from %s:%s -> target camera %s | Method: %s | URL: %s | Headers: %s",
+        client_host or "unknown",
         client_port,
+        camera_base_url,
         request.method,
         request.url,
         headers,
@@ -314,8 +333,10 @@ async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -
         )
 
     deps: AppState = request.app.state.deps
-    background_tasks.add_task(fetch_and_evaluate, deps, background_tasks)
-    return {"status": "queued"}
+    background_tasks.add_task(
+        fetch_and_evaluate, deps, background_tasks, camera_base_url
+    )
+    return {"status": "queued", "camera_url": camera_base_url}
 
 
 @app.get("/health")
