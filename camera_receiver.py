@@ -110,7 +110,11 @@ app = FastAPI(title=config.app_name, lifespan=lifespan)
 
 async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:
     """Send authenticated POST request to the oauth2-proxy protected /dispense API."""
-    if not config.dispenser_url or not config.dispenser_password:
+    if (
+        not config.dispenser_url
+        or not config.dispenser_password
+        or not config.dispenser_user
+    ):
         logger.warning(
             "Dispenser skipped: DISPENSER_URL or DISPENSER_PASSWORD not set."
         )
