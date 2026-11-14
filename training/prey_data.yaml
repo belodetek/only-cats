@@ -1,0 +1,13 @@
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 1
+names: ['prey']
+
+roboflow:
+  workspace: flappie
+  project: prey-detection
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/flappie/prey-detection/dataset/1

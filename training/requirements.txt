@@ -1,0 +1,4 @@
+openvino
+torch
+torchvision
+ultralytics
