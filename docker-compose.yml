@@ -18,6 +18,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    networks:
+      - only-cats
     command:
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
@@ -31,8 +33,6 @@ services:
       - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
-    networks:
-      - only-cats
     environment:
       GANDIV5_PERSONAL_ACCESS_TOKEN: ${GANDIV5_PERSONAL_ACCESS_TOKEN}
     volumes:
@@ -59,8 +59,6 @@ services:
       - dialout
     volumes:
       - resin-data:/data
-    networks:
-      - only-cats
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/health || exit 1"]
       interval: 10s
