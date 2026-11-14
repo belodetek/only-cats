@@ -37,6 +37,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(config.app_name)
 
+_uvicorn_formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
+for _uv_logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    _uv_logger = logging.getLogger(_uv_logger_name)
+    for _handler in _uv_logger.handlers:
+        _handler.setFormatter(_uvicorn_formatter)
+
 
 class ESP32SerialController:
     """Manages the USB serial link to the ESP32 and runs the lock command loop."""
