@@ -36,7 +36,7 @@ services:
     environment:
       GANDIV5_PERSONAL_ACCESS_TOKEN: ${GANDIV5_PERSONAL_ACCESS_TOKEN}
     volumes:
-      - ./letsencrypt:/letsencrypt
+      - resin-data:/letsencrypt
     labels:
       io.balena.features.balena-socket: 1
 
