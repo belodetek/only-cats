@@ -29,13 +29,10 @@ services:
       - --providers.docker.endpoint=unix:///var/run/balena.sock
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=only-cats
-      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
-    environment:
-      GANDIV5_PERSONAL_ACCESS_TOKEN: ${GANDIV5_PERSONAL_ACCESS_TOKEN}
     volumes:
       - resin-data:/letsencrypt
     labels:
