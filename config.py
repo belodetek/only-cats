@@ -1,6 +1,7 @@
 """config class"""
 
 import os
+import random
 
 level = os.getenv("LOG_LEVEL", "INFO")
 app_name = os.getenv("APP_NAME", "iwatch-ulock")
@@ -37,3 +38,10 @@ baud_rate = int(os.getenv("BAUD_RATE", "115200"))
 
 command_interval_sec = float(os.getenv("COMMAND_INTERVAL_SEC", "1.0"))
 lockout_duration_sec = float(os.getenv("LOCKOUT_DURATION_SEC", "300.0"))
+
+# Kibblenetes API
+dispenser_url = os.getenv("DISPENSER_URL")
+dispenser_user = os.getenv("DISPENSER_USER")
+dispenser_password = os.getenv("DISPENSER_PASSWORD")
+dispenser_side = os.getenv("DISPENSER_SIDE", random.choice(("left", "right")))
+dispenser_runsecs = float(os.getenv("DISPENSER_RUNSECS", "0.2"))

@@ -8,9 +8,9 @@ and persists positive prey detection images and YOLO annotation labels
 to /data/images and /data/labels for model fine-tuning and retraining.
 """
 
+import asyncio
 import logging
 import os
-import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -22,12 +22,12 @@ from typing import Optional
 import cv2
 import httpx
 import numpy as np
-import serial
 from fastapi import BackgroundTasks, FastAPI, Request
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 import config
+from esp32 import ESP32SerialController
 from flasher import auto_flash_esp32_if_updated
 
 # pylint: enable=import-error
@@ -36,79 +36,6 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
 )
 logger = logging.getLogger(config.app_name)
-
-
-class ESP32SerialController:
-    """Manages the USB serial link to the ESP32 and runs the lock command loop."""
-
-    def __init__(self, port: str, baudrate: int) -> None:
-        self.port = port
-        self.baudrate = baudrate
-        self.ser: Optional[serial.Serial] = None
-        self.lock = threading.Lock()
-        self.running = False
-        self.thread: Optional[threading.Thread] = None
-        self.lock_until = 0.0
-
-    def connect(self) -> None:
-        """Establish the serial connection to the ESP32 device."""
-        try:
-            self.ser = serial.Serial(self.port, self.baudrate, timeout=1.0)
-            time.sleep(2.0)  # Allow ESP32 auto-reset to settle
-            logger.info("Connected to ESP32 on %s at %d baud", self.port, self.baudrate)
-        except (serial.SerialException, OSError) as exc:
-            logger.error("Failed to open serial port %s: %s", self.port, exc)
-            self.ser = None
-
-    def start_worker(self) -> None:
-        """Spawn the background thread that feeds the active lock command."""
-        if self.ser and self.ser.is_open:
-            self.running = True
-            self.thread = threading.Thread(target=self._command_loop, daemon=True)
-            self.thread.start()
-            logger.info("Serial command thread started.")
-
-    def _command_loop(self) -> None:
-        """Sends 'L' each second ONLY while actively in a prey lockout window."""
-        while self.running:
-            now = time.time()
-            with self.lock:
-                if self.ser and self.ser.is_open and now < self.lock_until:
-                    try:
-                        self.ser.write(b"L")
-                        logger.debug("Lock keepalive sent: 'L'")
-                    except serial.SerialException as exc:
-                        logger.error("Serial write failed: %s", exc)
-            time.sleep(config.command_interval_sec)
-
-    def trigger_lock(self, duration: float = config.lockout_duration_sec) -> None:
-        """Engage the lock and send 'L' for the specified duration."""
-        with self.lock:
-            new_target = time.time() + duration
-            self.lock_until = max(self.lock_until, new_target)
-            if self.ser and self.ser.is_open:
-                try:
-                    self.ser.write(b"L")
-                except serial.SerialException:
-                    pass
-            logger.warning(
-                ">>> PREY LOCKOUT ACTIVATED: Holding lock ON for %.1fs (until %s)",
-                duration,
-                time.strftime("%H:%M:%S", time.localtime(self.lock_until)),
-            )
-
-    def close(self) -> None:
-        """Stop background worker and terminate serial connection."""
-        self.running = False
-        if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=1.5)
-        with self.lock:
-            if self.ser and self.ser.is_open:
-                try:
-                    self.ser.close()
-                except (serial.SerialException, OSError):
-                    pass
-        logger.info("ESP32 serial connection closed.")
 
 
 # pylint: disable=too-few-public-methods
@@ -134,6 +61,7 @@ async def lifespan(app_instance: FastAPI):
             _handler.setFormatter(_uvicorn_formatter)
 
     logger.info("Initializing NUC vision receiver...")
+
     state = AppState()
 
     os.makedirs(config.images_dir, exist_ok=True)
@@ -162,6 +90,10 @@ async def lifespan(app_instance: FastAPI):
         )
 
     state.http_client = httpx.AsyncClient(timeout=4.0, verify=False)
+    loop = asyncio.get_running_loop()
+    state.controller.on_lockout_expired = lambda: asyncio.run_coroutine_threadsafe(
+        _trigger_dispenser(state.http_client), loop
+    )
     app_instance.state.deps = state
 
     yield
@@ -174,6 +106,46 @@ async def lifespan(app_instance: FastAPI):
 
 
 app = FastAPI(title=config.app_name, lifespan=lifespan)
+
+
+async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:
+    """Send authenticated POST request to the oauth2-proxy protected /dispense API."""
+    if not config.dispenser_url or not config.dispenser_password:
+        logger.warning(
+            "Dispenser skipped: DISPENSER_URL or DISPENSER_PASSWORD not set."
+        )
+        return
+
+    payload = {
+        "side": config.dispenser_side,
+        "runsecs": config.dispenser_runsecs,
+    }
+    auth = httpx.BasicAuth(
+        username=config.dispenser_user,
+        password=config.dispenser_password,
+    )
+
+    try:
+        resp = await http_client.post(
+            config.dispenser_url,
+            json=payload,
+            auth=auth,
+            timeout=10.0,
+        )
+        if resp.is_success:
+            logger.info(
+                "Dispenser triggered successfully (%d): %s",
+                resp.status_code,
+                resp.text,
+            )
+        else:
+            logger.error(
+                "Dispenser request rejected (%d): %s",
+                resp.status_code,
+                resp.text,
+            )
+    except httpx.RequestError as exc:
+        logger.error("Network error calling dispenser API: %s", exc)
 
 
 def _persist_training_pair(img: np.ndarray, result: Results) -> None:
