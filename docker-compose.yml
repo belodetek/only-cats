@@ -21,39 +21,53 @@ services:
       - "8080:8080"
     networks:
       - only-cats
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      - --entrypoints.websecure.address=:443
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=iwatch-net
-      - --providers.docker.defaultRule=Host(`{{ env "DOMAIN_NAME" }}`)
-      - --accesslog=true
-      - --accesslog.format=common
-      - --api.dashboard=true
-      - --metrics.prometheus=true
-      - --metrics.prometheus.addrouterslabels=true
-      - --metrics.prometheus.addserviceslabels=true
-      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
+      - |
+        mkdir -p /etc/traefik
+        cat << 'EOF' > /etc/traefik/dynamic.yml
+        http:
+          routers:
+            dashboard:
+              rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+              entryPoints:
+                - websecure
+              middlewares:
+                - dashboard-redirect
+              service: api@internal
+              tls:
+                certResolver: letsencrypt
+          middlewares:
+            dashboard-redirect:
+              redirectRegex:
+                regex: '^(https?://[^/]+/dashboard)$$'
+                replacement: '$${1}/'
+        EOF
+        exec traefik \
+          --entrypoints.web.address=:80 \
+          --entrypoints.web.http.redirections.entryPoint.to=websecure \
+          --entrypoints.web.http.redirections.entryPoint.scheme=https \
+          --entrypoints.websecure.address=:443 \
+          --providers.docker=true \
+          --providers.docker.exposedbydefault=false \
+          --providers.docker.network=only-cats \
+          --providers.docker.defaultRule='Host(`{{ env "DOMAIN_NAME" }}`)' \
+          --providers.file.filename=/etc/traefik/dynamic.yml \
+          --accesslog=true \
+          --accesslog.format=common \
+          --api.dashboard=true \
+          --metrics.prometheus=true \
+          --metrics.prometheus.addrouterslabels=true \
+          --metrics.prometheus.addserviceslabels=true \
+          --certificatesresolvers.letsencrypt.acme.email="$${ACME_EMAIL}" \
+          --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
+          --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
+          --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5 \
+          --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
     volumes:
       - resin-data:/letsencrypt
     labels:
       io.balena.features.balena-socket: 1
-      traefik.enable: true
-      traefik.http.middlewares.dashboard-redirect.redirectregex.regex: ^(https?://[^/]+/dashboard)$$
-      traefik.http.middlewares.dashboard-redirect.redirectregex.replacement: $${1}/
-      traefik.http.routers.dashboard.entrypoints: websecure
-      traefik.http.routers.dashboard.middlewares: dashboard-redirect
-      traefik.http.routers.dashboard.rule: PathPrefix(`/api`) || PathPrefix(`/dashboard`)
-      traefik.http.routers.dashboard.service: api@internal
-      traefik.http.routers.dashboard.tls: true
-      traefik.http.routers.dashboard.tls.certresolver: letsencrypt
 
   iwatch-ulock:
     build: .
