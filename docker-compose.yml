@@ -12,6 +12,7 @@ x-common: &common
   restart: unless-stopped
 
 services:
+  # with Gandi ACME config.
   traefik:
     image: traefik@sha256:aa942a00bce033c909bf1f7e861d93761be4b31a035f10d2410d33e38a8f41cf  # 3.7.19
     <<: *common
@@ -24,6 +25,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        # not possible to use env-var(s) in labels in balena-compose
         mkdir -p /etc/traefik
         cat << 'EOF' > /etc/traefik/dynamic.yml
         http:
@@ -40,8 +42,8 @@ services:
           middlewares:
             dashboard-redirect:
               redirectRegex:
-                regex: '^(https?://[^/]+/dashboard)$$'
-                replacement: '$${1}/'
+                regex: '^(https?://[^/]+/dashboard)$'
+                replacement: '${1}/'
         EOF
         exec traefik \
           --entrypoints.web.address=:80 \
@@ -59,7 +61,7 @@ services:
           --metrics.prometheus=true \
           --metrics.prometheus.addrouterslabels=true \
           --metrics.prometheus.addserviceslabels=true \
-          --certificatesresolvers.letsencrypt.acme.email="$${ACME_EMAIL}" \
+          --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
           --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
           --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
           --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5 \
