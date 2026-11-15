@@ -13,7 +13,7 @@ x-common: &common
 
 services:
   traefik:
-    image: traefik:v3.2
+    image: traefik:v3.7.19
     <<: *common
     ports:
       - "80:80"
@@ -22,26 +22,26 @@ services:
     networks:
       - only-cats
     command:
-      - --accesslog=true
       - --accesslog.format=common
+      - --accesslog=true
       - --api.dashboard=true
       - --api.insecure=true
-      - --metrics.prometheus=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.websecure.address=:443
       - --metrics.prometheus.addrouterslabels=true
       - --metrics.prometheus.addserviceslabels=true
-      - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      - --entrypoints.websecure.address=:443
-      - --providers.docker=true
+      - --metrics.prometheus=true
+      - --providers.docker.defaultRule=Host(`{{ env "DOMAIN_NAME" }}`)
       - --providers.docker.endpoint=unix:///var/run/balena.sock
       - --providers.docker.exposedbydefault=false
-      - --providers.docker.defaultRule=Host(`{{ env "DOMAIN_NAME" }}`)
       - --providers.docker.network=only-cats
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
+      - --providers.docker=true
     volumes:
       - resin-data:/letsencrypt
     labels:
