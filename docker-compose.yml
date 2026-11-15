@@ -18,9 +18,17 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8080:8080"
     networks:
       - only-cats
     command:
+      - --accesslog=true
+      - --accesslog.format=common
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --metrics.prometheus=true
+      - --metrics.prometheus.addrouterslabels=true
+      - --metrics.prometheus.addserviceslabels=true
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
       - --entrypoints.web.http.redirections.entryPoint.scheme=https
