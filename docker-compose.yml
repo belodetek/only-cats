@@ -46,7 +46,10 @@ services:
     labels:
       io.balena.features.balena-socket: 1
       traefik.enable: true
+      traefik.http.middlewares.dashboard-redirect.redirectregex.regex: ^(https?://[^/]+/dashboard)$$
+      traefik.http.middlewares.dashboard-redirect.redirectregex.replacement: $${1}/
       traefik.http.routers.dashboard.entrypoints: websecure
+      traefik.http.routers.dashboard.middlewares: dashboard-redirect
       traefik.http.routers.dashboard.rule: PathPrefix(`/api`) || PathPrefix(`/dashboard`)
       traefik.http.routers.dashboard.service: api@internal
       traefik.http.routers.dashboard.tls: true
