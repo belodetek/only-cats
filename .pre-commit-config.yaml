@@ -1,4 +1,4 @@
-exclude: ^(VERSION|.versionbot/CHANGELOG.yml)$
+exclude: ^(VERSION|.versionbot/CHANGELOG.yml|firmware/.*)$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

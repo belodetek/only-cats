@@ -28,6 +28,7 @@ services:
       - --providers.docker=true
       - --providers.docker.endpoint=unix:///var/run/balena.sock
       - --providers.docker.exposedbydefault=false
+      - --providers.docker.defaultRule=Host(`{{ env "DOMAIN_NAME" }}`)
       - --providers.docker.network=only-cats
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
@@ -65,7 +66,6 @@ services:
       start_period: 15s
     labels:
       traefik.enable: true
-      traefik.http.routers.iwatch.rule: Host(`${DOMAIN_NAME}`)
       traefik.http.routers.iwatch.entrypoints: websecure
       traefik.http.routers.iwatch.tls: true
       traefik.http.routers.iwatch.tls.certresolver: letsencrypt
