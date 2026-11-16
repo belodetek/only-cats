@@ -33,6 +33,15 @@ services:
         cat << 'EOF' > /etc/traefik/dynamic.yml
         http:
           routers:
+            # balena PDUs: only redirect port 80 requests that were NOT already decrypted upstream
+            redirect-to-https:
+              rule: 'HostRegexp(`.+`) && !Header(`X-Forwarded-Proto`, `https`)'
+              entryPoints:
+                - web
+              priority: 1000
+              middlewares:
+                - redirect-scheme-https
+              service: noop@internal
             # balena device tunnel deadbeef -p 443:8443
             # open https://localhost:8443/dashboard
             dashboard:
@@ -44,7 +53,18 @@ services:
               service: api@internal
               tls:
                 certResolver: letsencrypt
+            dashboard-forwarded:
+              rule: 'Header(`X-Forwarded-Proto`, `https`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+              entryPoints:
+                - web
+              middlewares:
+                - dashboard-redirect
+              service: api@internal
           middlewares:
+            redirect-scheme-https:
+              redirectScheme:
+                scheme: https
+                permanent: true
             dashboard-redirect:
               redirectRegex:
                 regex: '^(https?://[^/]+/dashboard)$'
@@ -67,27 +87,34 @@ services:
                   - address: '{{ env "CAT_CAM_1" }}:443'
         EOF
         exec traefik \
-          --entrypoints.web.address=:80 \
-          --entrypoints.web.http.redirections.entryPoint.to=websecure \
-          --entrypoints.web.http.redirections.entryPoint.scheme=https \
-          --entrypoints.websecure.address=:443 \
-          --entrypoints.cam-tcp.address=:444 \
-          --providers.docker=true \
-          --providers.docker.exposedbydefault=false \
-          --providers.docker.network=only-cats \
-          --providers.docker.defaultRule='Host(`{{ env "DOMAIN_NAME" }}`)' \
-          --providers.file.filename=/etc/traefik/dynamic.yml \
-          --accesslog=true \
           --accesslog.format=common \
+          --accesslog=true \
           --api.dashboard=true \
-          --metrics.prometheus=true \
-          --metrics.prometheus.addrouterslabels=true \
-          --metrics.prometheus.addserviceslabels=true \
+          --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
+          --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5 \
+          --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
           --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
           --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5 \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
+          --entrypoints.cam-tcp.address=:444 \
+          --entrypoints.web.address=:80 \
+          --entrypoints.web.forwardedHeaders.insecure=true \
+          --entrypoints.websecure.address=:443 \
+          --metrics.prometheus.addrouterslabels=true \
+          --metrics.prometheus.addserviceslabels=true \
+          --metrics.prometheus=true \
+          --ping.entrypoint=traefik \
+          --ping=true \
+          --providers.docker.defaultRule='Host(`{{ env "DOMAIN_NAME" }}`)' \
+          --providers.docker.exposedbydefault=false \
+          --providers.docker.network=only-cats \
+          --providers.docker=true \
+          --providers.file.filename=/etc/traefik/dynamic.yml \
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - resin-data:/letsencrypt
     labels:
@@ -120,6 +147,7 @@ services:
       start_period: 15s
     labels:
       traefik.enable: true
+      traefik.http.routers.iwatch-http.entrypoints: web
       traefik.http.routers.iwatch.entrypoints: websecure
       traefik.http.routers.iwatch.tls: true
       traefik.http.routers.iwatch.tls.certresolver: letsencrypt
