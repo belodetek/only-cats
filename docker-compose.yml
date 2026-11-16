@@ -57,6 +57,7 @@ services:
               rule: 'Header(`X-Forwarded-Proto`, `https`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
               entryPoints:
                 - web
+              priority: 500
               middlewares:
                 - dashboard-redirect
               service: api@internal
@@ -87,6 +88,7 @@ services:
                   - address: '{{ env "CAT_CAM_1" }}:443'
         EOF
         exec traefik \
+          --accesslog.fields.headers.defaultmode=keep \
           --accesslog.format=common \
           --accesslog=true \
           --api.dashboard=true \
