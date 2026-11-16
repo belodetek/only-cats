@@ -19,6 +19,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "444:444"
       - "8080:8080"
     networks:
       - only-cats
@@ -44,12 +45,27 @@ services:
               redirectRegex:
                 regex: '^(https?://[^/]+/dashboard)$'
                 replacement: '${1}/'
+        tcp:
+          routers:
+            cat-cam-1:
+              rule: 'HostSNI(`*`)'
+              entryPoints:
+                - cam-tcp
+              tls:
+                passthrough: true
+              service: cat-cam-1-svc
+          services:
+            cat-cam-1-svc:
+              loadBalancer:
+                servers:
+                  - address: '{{ env "CAT_CAM_1" }}:443'
         EOF
         exec traefik \
           --entrypoints.web.address=:80 \
           --entrypoints.web.http.redirections.entryPoint.to=websecure \
           --entrypoints.web.http.redirections.entryPoint.scheme=https \
           --entrypoints.websecure.address=:443 \
+          --entrypoints.cam-tcp.address=:444 \
           --providers.docker=true \
           --providers.docker.exposedbydefault=false \
           --providers.docker.network=only-cats \
