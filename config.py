@@ -45,3 +45,10 @@ dispenser_user = os.getenv("DISPENSER_USER")
 dispenser_password = os.getenv("DISPENSER_PASSWORD")
 dispenser_side = os.getenv("DISPENSER_SIDE", random.choice(("left", "right")))
 dispenser_runsecs = float(os.getenv("DISPENSER_RUNSECS", "0.2"))
+
+# notifications
+signal_api_url = os.getenv("SIGNAL_API_URL", "http://signal-api:8080").rstrip("/")
+signal_sender = os.getenv("SIGNAL_SENDER", "").strip()
+signal_recipients = [
+    r.strip() for r in os.getenv("SIGNAL_RECIPIENTS", "").split(",") if r.strip()
+]

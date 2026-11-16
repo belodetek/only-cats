@@ -4,8 +4,9 @@
 
 Evaluates incoming camera motion webhooks, runs YOLO inference to detect
 prey, commands the ESP32 to energize the lock ONLY during prey lockout,
-and persists positive prey detection images and YOLO annotation labels
-to /data/images and /data/labels for model fine-tuning and retraining.
+persists positive prey detection images and YOLO annotation labels
+to /data/images and /data/labels for model fine-tuning and retraining,
+and dispatches Signal alerts with event metadata, labels, and snapshot.
 """
 
 import asyncio
@@ -16,7 +17,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from json.decoder import JSONDecodeError
-from typing import Optional
+from typing import Any, Optional
 
 # pylint: disable=import-error
 import cv2
@@ -26,11 +27,11 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
+# pylint: enable=import-error
 import config
 from esp32 import ESP32SerialController
 from flasher import auto_flash_esp32_if_updated
-
-# pylint: enable=import-error
+from notifications import send_signal_prey_alert
 
 logging.basicConfig(
     format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
@@ -152,8 +153,10 @@ async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:
         logger.error("Network error calling dispenser API: %s", exc)
 
 
-def _persist_training_pair(img: np.ndarray, result: Results) -> None:
-    """Persist raw image and normalized YOLO bounding boxes."""
+def _persist_training_pair(
+    img: np.ndarray, result: Results
+) -> Optional[tuple[str, str]]:
+    """Persist raw image and normalized YOLO bounding boxes, returning saved paths."""
     try:
         base_name = f"prey_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
         img_path = os.path.join(config.images_dir, f"{base_name}.jpg")
@@ -165,7 +168,7 @@ def _persist_training_pair(img: np.ndarray, result: Results) -> None:
 
         if not success:
             logger.error("Failed to write image snapshot to %s", img_path)
-            return
+            return None
 
         label_lines: list[str] = []
         if result.boxes is not None:
@@ -183,9 +186,26 @@ def _persist_training_pair(img: np.ndarray, result: Results) -> None:
             label_file.writelines(label_lines)
 
         logger.info("Persisted training pair: %s and %s", img_path, label_path)
+        return img_path, label_path
 
     except OSError as exc:
         logger.error("Filesystem error while persisting training pair: %s", exc)
+        return None
+
+
+async def _persist_and_notify(
+    img: np.ndarray,
+    result: Results,
+    event_data: dict[str, Any],
+) -> None:
+    """Save training pair to disk first, then send Signal prey alert with attachments."""
+    saved = await asyncio.to_thread(_persist_training_pair, img, result)
+    img_path, label_path = saved if saved else (None, None)
+    await send_signal_prey_alert(
+        event_data=event_data,
+        image_path=img_path,
+        label_path=label_path,
+    )
 
 
 def _resolve_camera_url(client_host: Optional[str]) -> str:
@@ -203,6 +223,7 @@ async def fetch_and_evaluate(
     state: AppState,
     background_tasks: BackgroundTasks,
     camera_base_url: str,
+    webhook_event: Optional[dict[str, Any]] = None,
 ) -> None:
     """Retrieve snapshot from Reolink camera, run YOLO, and handle lock state."""
     if not state.model or not state.http_client or not state.controller:
@@ -267,7 +288,20 @@ async def fetch_and_evaluate(
                     int(config.lockout_duration_sec),
                 )
                 state.controller.trigger_lock(config.lockout_duration_sec)
-                background_tasks.add_task(_persist_training_pair, img, top_result)
+                event_data: dict[str, Any] = {
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                    "lockout_duration_sec": int(config.lockout_duration_sec),
+                    "fetch_ms": round(fetch_ms, 1),
+                    "infer_ms": round(infer_ms, 1),
+                    "detections": [
+                        {"class": cls_name, "confidence": round(conf, 4)}
+                        for cls_name, conf in detections
+                    ],
+                    **(webhook_event or {}),
+                }
+                background_tasks.add_task(
+                    _persist_and_notify, img, top_result, event_data
+                )
             else:
                 logger.info("Objects detected, but no prey criteria met.")
         else:
@@ -304,19 +338,22 @@ async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -
         headers,
     )
 
+    webhook_event: dict[str, Any] = {"camera_url": camera_base_url}
     try:
         payload = await request.json()
         alarm_type = payload.get("alarm", {}).get("type", "Alarm Trigger")
+        webhook_event["alarm_type"] = alarm_type
+        webhook_event["webhook_payload"] = payload
         logger.info("Webhook event received: %s | Payload: %s", alarm_type, payload)
     except (JSONDecodeError, ValueError, UnicodeDecodeError):
         raw_body = await request.body()
-        logger.info(
-            "Webhook non-JSON body: %s", raw_body.decode("utf-8", errors="replace")
-        )
+        raw_text = raw_body.decode("utf-8", errors="replace")
+        webhook_event["raw_body"] = raw_text
+        logger.info("Webhook non-JSON body: %s", raw_text)
 
     deps: AppState = request.app.state.deps
     background_tasks.add_task(
-        fetch_and_evaluate, deps, background_tasks, camera_base_url
+        fetch_and_evaluate, deps, background_tasks, camera_base_url, webhook_event
     )
     return {"status": "queued", "camera_url": camera_base_url}
 
