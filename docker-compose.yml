@@ -92,7 +92,7 @@ services:
           --accesslog.format=common \
           --accesslog=true \
           --api.dashboard=true \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15
+          --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15 \
           --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5 \
           --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
           --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
@@ -112,7 +112,7 @@ services:
           --providers.docker.exposedbydefault=false \
           --providers.docker.network=only-cats \
           --providers.docker=true \
-          --providers.file.filename=/etc/traefik/dynamic.yml \
+          --providers.file.filename=/etc/traefik/dynamic.yml
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 30s
