@@ -193,7 +193,6 @@ services:
       OAUTH2_PROXY_SKIP_AUTH_PREFLIGHT: "true"
       OAUTH2_PROXY_UPSTREAMS: static://202
       OAUTH2_PROXY_WHITELIST_DOMAINS: .balena-devices.com
-
   iwatch-ulock:
     build: .
     <<: *common
@@ -203,9 +202,9 @@ services:
       - only-cats
     expose:
       - 8000
-# FIXME: uncomment when ESP32 is connected
-#     devices:
-#     - /dev/ttyACM0:/dev/ttyACM0
+    devices:
+      # [ -e /dev/ttyACM0 ] ||  mknod /dev/ttyACM0 c 166 0
+      - /dev/ttyACM0:/dev/ttyACM0
     environment:
       YOLO_VERBOSE: False
       ULTRALYTICS_AUTOINSTALL: False
