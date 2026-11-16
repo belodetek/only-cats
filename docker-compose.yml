@@ -80,7 +80,7 @@ services:
                 - balena-https-proto
               service: cat-cam-1-flv-svc
             cat-cam-1-assets:
-              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`))'
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
               entryPoints:
                 - web
               priority: 400
@@ -138,7 +138,7 @@ services:
                 responseForwarding:
                   flushInterval: -1
                 servers:
-                  - url: http://{{ env "CAT_CAM_1" }}:1935
+                  - url: https://{{ env "CAT_CAM_1" }}:443
             iwatch-ulock-svc:
               loadBalancer:
                 servers:
