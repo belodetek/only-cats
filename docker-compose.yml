@@ -44,6 +44,13 @@ services:
               middlewares:
                 - redirect-scheme-https
               service: noop@internal
+            oauth2-proxy:
+              rule: |
+                HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/oauth2`)
+              entryPoints:
+                - web
+              priority: 600
+              service: oauth2-proxy-svc
             dashboard:
               rule: |
                 PathPrefix(`/api`) || PathPrefix(`/dashboard`)
@@ -67,6 +74,7 @@ services:
                 - web
               priority: 500
               middlewares:
+                - oauth2-auth
                 - dashboard-redirect
               service: api@internal
             cat-cam-1:
@@ -76,6 +84,7 @@ services:
                 - web
               priority: 400
               middlewares:
+                - oauth2-auth
                 - cam-1-redirect
                 - cam-1-strip
               service: cat-cam-1-svc
@@ -95,12 +104,22 @@ services:
               entryPoints:
                 - web
               priority: 400
+              middlewares:
+                - oauth2-auth
               service: cat-cam-1-svc
           middlewares:
             redirect-scheme-https:
               redirectScheme:
                 scheme: https
                 permanent: true
+            oauth2-auth:
+              forwardAuth:
+                address: http://oauth2-proxy:4180/oauth2/auth
+                trustForwardHeader: true
+                authResponseHeaders:
+                  - X-Auth-Request-User
+                  - X-Auth-Request-Email
+                  - Authorization
             dashboard-redirect:
               redirectRegex:
                 regex: '^(https?://[^/]+/dashboard)$'
@@ -114,10 +133,14 @@ services:
                 prefixes:
                   - /cctv1
           services:
+            oauth2-proxy-svc:
+              loadBalancer:
+                servers:
+                  - url: http://oauth2-proxy:4180
             cat-cam-1-svc:
               loadBalancer:
                 servers:
-                  - url: 'https://{{ env "CAT_CAM_1" }}:443'
+                  - url: https://{{ env "CAT_CAM_1" }}:443
         EOF
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
@@ -155,6 +178,29 @@ services:
       - resin-data:/letsencrypt
     labels:
       io.balena.features.balena-socket: 1
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048  # v7.15.6
+    <<: *common
+    networks:
+      - only-cats
+    expose:
+      - 4180
+    environment:
+      OAUTH2_PROXY_PROVIDER: github
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REDIRECT_URL: ${OAUTH2_PROXY_REDIRECT_URL}
+      OAUTH2_PROXY_GITHUB_ORG: ${OAUTH2_PROXY_GITHUB_ORG}
+      OAUTH2_PROXY_GITHUB_TEAM: ${OAUTH2_PROXY_GITHUB_TEAM}
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SKIP_AUTH_PREFLIGHT: "true"
 
   iwatch-ulock:
     build: .
