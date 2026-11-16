@@ -98,6 +98,7 @@ services:
           --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
           --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
           --entrypoints.cam-tcp.address=:444 \
+          --entrypoints.ping.address=127.0.0.1:8082 \
           --entrypoints.web.address=:80 \
           --entrypoints.web.forwardedHeaders.insecure=true \
           --entrypoints.websecure.address=:443 \
@@ -105,7 +106,7 @@ services:
           --metrics.prometheus.addrouterslabels=true \
           --metrics.prometheus.addserviceslabels=true \
           --metrics.prometheus=true \
-          --ping.entrypoint=traefik \
+          --ping.entrypoint=ping \
           --ping=true \
           --providers.docker.defaultRule='Host(`{{ env "DOMAIN_NAME" }}`)' \
           --providers.docker.exposedbydefault=false \
