@@ -154,7 +154,7 @@ async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:
 
 
 def _persist_training_pair(
-    img: np.ndarray, result: Results
+    img: np.ndarray, result: Optional[Results]
 ) -> Optional[tuple[str, str]]:
     """Persist raw image and normalized YOLO bounding boxes, returning saved paths."""
     try:
@@ -171,7 +171,7 @@ def _persist_training_pair(
             return None
 
         label_lines: list[str] = []
-        if result.boxes is not None:
+        if result is not None and result.boxes is not None:
             # xywhn provides normalized (x_center, y_center, width, height) in range [0.0, 1.0]
             boxes_xywhn = result.boxes.xywhn.cpu().numpy()
             classes = result.boxes.cls.cpu().numpy().astype(int)
@@ -221,7 +221,6 @@ def _resolve_camera_url(client_host: Optional[str]) -> str:
 
 async def fetch_and_evaluate(
     state: AppState,
-    background_tasks: BackgroundTasks,
     camera_base_url: str,
     webhook_event: Optional[dict[str, Any]] = None,
 ) -> None:
@@ -267,12 +266,22 @@ async def fetch_and_evaluate(
         )
         infer_ms = (time.perf_counter() - t1) * 1000
 
-        if results and len(results[0].boxes) > 0:
-            top_result = results[0]
-            detected_classes = [
-                state.model.names[int(cls_id)] for cls_id in top_result.boxes.cls
-            ]
-            confidences = [float(conf) for conf in top_result.boxes.conf]
+        is_test = bool(
+            webhook_event and str(webhook_event.get("alarm_type", "")).upper() == "TEST"
+        )
+        top_result = results[0] if results else None
+
+        if (top_result is not None and len(top_result.boxes) > 0) or is_test:
+            detected_classes = (
+                [state.model.names[int(cls_id)] for cls_id in top_result.boxes.cls]
+                if top_result is not None
+                else []
+            )
+            confidences = (
+                [float(conf) for conf in top_result.boxes.conf]
+                if top_result is not None
+                else []
+            )
             detections = list(zip(detected_classes, confidences))
 
             logger.info(
@@ -282,9 +291,12 @@ async def fetch_and_evaluate(
                 infer_ms,
             )
 
-            if any(name in config.target_classes for name in detected_classes):
+            if is_test or any(
+                name in config.target_classes for name in detected_classes
+            ):
                 logger.warning(
-                    ">>> PREY DETECTED! Activating lock for %ds...",
+                    ">>> %s! Activating lock for %ds...",
+                    "TEST EVENT" if is_test else "PREY DETECTED",
                     int(config.lockout_duration_sec),
                 )
                 state.controller.trigger_lock(config.lockout_duration_sec)
@@ -299,9 +311,7 @@ async def fetch_and_evaluate(
                     ],
                     **(webhook_event or {}),
                 }
-                background_tasks.add_task(
-                    _persist_and_notify, img, top_result, event_data
-                )
+                await _persist_and_notify(img, top_result, event_data)
             else:
                 logger.info("Objects detected, but no prey criteria met.")
         else:
@@ -352,9 +362,7 @@ async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -
         logger.info("Webhook non-JSON body: %s", raw_text)
 
     deps: AppState = request.app.state.deps
-    background_tasks.add_task(
-        fetch_and_evaluate, deps, background_tasks, camera_base_url, webhook_event
-    )
+    background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
     return {"status": "queued", "camera_url": camera_base_url}
 
 

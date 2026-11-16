@@ -76,7 +76,14 @@ async def send_signal_prey_alert(
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(f"{config.signal_api_url}/v2/send", json=payload)
-            resp.raise_for_status()
+            if not resp.is_success:
+                logger.error(
+                    "Signal API rejected /v2/send (%d): %s",
+                    resp.status_code,
+                    resp.text,
+                )
+                return
             logger.info("Sent Signal prey alert to %s", config.signal_recipients)
+
     except Exception as exc:
         logger.error("Failed to send Signal prey alert: %s", exc)
