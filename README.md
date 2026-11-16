@@ -63,13 +63,13 @@
       | 8. BackgroundTasks    |          | 8.1 trigger snack dispenser |
       |    Offload Disk I/O   |          |     on_lockout_expired      |
       +----------+------------+          +-----------------------------+
-                 |
-                 v
-      +-----------------------+
-      | 9. Persist Dataset    |
-      |    /data/images/*.jpg |
-      |    /data/labels/*.txt |
-      +-----------------------+
+        |                   |
+        v                   v
++-------------------+     +---------------------+
+| 9.1 Signal notify |     | 9.2 Persist Dataset |
+|                   |     | /data/images/*.jpg  |
++-------------------+     | /data/labels/*.txt  |
+                          +---------------------+
 ```
 
 ## physical(ish) wiring diagram
