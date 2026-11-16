@@ -78,7 +78,6 @@ services:
               priority: 450
               middlewares:
                 - balena-https-proto
-                - oauth2-auth
               service: cat-cam-1-flv-svc
             cat-cam-1-assets:
               rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`))'
