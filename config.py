@@ -39,7 +39,7 @@ baud_rate = int(os.getenv("BAUD_RATE", "115200"))
 command_interval_sec = float(os.getenv("COMMAND_INTERVAL_SEC", "1.0"))
 lockout_duration_sec = float(os.getenv("LOCKOUT_DURATION_SEC", "300.0"))
 
-# Kibblenetes API
+# Kibblenetes API: https://github.com/belodetek/pet-a-manger
 dispenser_url = os.getenv("DISPENSER_URL")
 dispenser_user = os.getenv("DISPENSER_USER")
 dispenser_password = os.getenv("DISPENSER_PASSWORD")
