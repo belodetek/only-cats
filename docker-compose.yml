@@ -232,6 +232,6 @@ services:
       - resin-data:/data
     labels:
       # Run daily and delete images/labels older than 90 days
-      ofelia.job-run.purge-training-data.schedule: "4 2 0 * * *"
+      ofelia.job-local.purge-training-data.schedule: "4 2 0 * * *"
       ofelia.job-local.purge-training-data.command: >
         sh -c "find /data/images /data/labels -type f \( -name '*.jpg' -o -name '*.txt' \) -mtime +90 -delete"
