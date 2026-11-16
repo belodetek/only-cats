@@ -31,6 +31,8 @@ services:
         cat << 'EOF' > /etc/traefik/dynamic.yml
         http:
           routers:
+            # balena device tunnel deadbeef -p 444:8443
+            # open https://localhost:8443/dashboard
             dashboard:
               rule: 'PathPrefix(`/api`) || PathPrefix(`/dashboard`)'
               entryPoints:
@@ -55,6 +57,8 @@ services:
                 passthrough: true
               service: cat-cam-1-svc
           services:
+            # balena device tunnel deadbeef -p 444:8444
+            # open https://localhost:8444
             cat-cam-1-svc:
               loadBalancer:
                 servers:
