@@ -95,7 +95,7 @@ services:
               priority: 300
               middlewares:
                 - balena-https-proto
-                - root-cam-redirect
+                - root-redirect
               service: noop@internal
             iwatch-ublock:
               rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
