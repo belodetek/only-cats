@@ -241,8 +241,12 @@ services:
     <<: *common
     volumes:
       - resin-data:/data
-    labels:
-      # Run daily and delete images/labels older than 90 days
-      ofelia.job-local.purge-training-data.schedule: "4 2 0 * * *"
-      ofelia.job-local.purge-training-data.command: >
-        sh -c "find /data/images /data/labels -type f \( -name '*.jpg' -o -name '*.txt' \) -mtime +90 -delete"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat << 'EOF' > /etc/ofelia.conf
+        [job-local "purge-training-data"]
+        schedule = 4 2 0 * * *
+        command = sh -c "find /data/images /data/labels -type f \( -name '*.jpg' -o -name '*.txt' \) -mtime +90 -delete"
+        EOF
+        exec /usr/bin/ofelia daemon --config=/etc/ofelia.conf
