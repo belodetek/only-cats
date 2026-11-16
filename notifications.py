@@ -58,7 +58,7 @@ async def send_signal_prey_alert(
             attachments.append(encoded_img)
 
     body_parts = [
-        "🚨 Prey detected — cat door locked",
+        "🚨 Contraband - cat-flap locked",
         "",
         "Event:",
         pretty_event,
