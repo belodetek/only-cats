@@ -32,7 +32,7 @@ services:
         http:
           routers:
             dashboard:
-              rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+              rule: 'PathPrefix(`/api`) || PathPrefix(`/dashboard`)'
               entryPoints:
                 - websecure
               middlewares:
