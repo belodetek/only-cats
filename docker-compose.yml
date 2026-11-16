@@ -19,8 +19,11 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "444:444"
-      - "8080:8080"
+      - "444:444"  # Reolink camera tunnel(s)
+      - "8080:8080"  # Traefik dashboard/API
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - only-cats
     entrypoint: ["/bin/sh", "-c"]
