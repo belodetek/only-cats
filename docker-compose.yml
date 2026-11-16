@@ -95,9 +95,6 @@ services:
               loadBalancer:
                 servers:
                   - address: '{{ env "CAT_CAM_1" }}:443'
-          serversTransports:
-            reolink-transport:
-              insecureSkipVerify: true  # Reolink
         EOF
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
@@ -110,8 +107,8 @@ services:
           --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
           --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
           --entrypoints.web.address=:80 \
-          --entrypoints.web.http.aliasHeadersStrategy=reject \
           --entrypoints.web.forwardedHeaders.insecure=true \
+          --entrypoints.web.http.aliasHeadersStrategy=reject \
           --entrypoints.websecure.address=:443 \
           --entrypoints.websecure.http.aliasHeadersStrategy=reject \
           --metrics.prometheus.addrouterslabels=true \
@@ -123,7 +120,8 @@ services:
           --providers.docker.exposedbydefault=false \
           --providers.docker.network=only-cats \
           --providers.docker=true \
-          --providers.file.filename=/etc/traefik/dynamic.yml
+          --providers.file.filename=/etc/traefik/dynamic.yml \
+          --serversTransport.insecureSkipVerify=true
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 30s
