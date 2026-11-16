@@ -206,6 +206,19 @@ services:
       OAUTH2_PROXY_SKIP_AUTH_PREFLIGHT: "true"
       OAUTH2_PROXY_UPSTREAMS: static://202
       OAUTH2_PROXY_WHITELIST_DOMAINS: .balena-devices.com
+
+  signal-api:
+    image: bbernhard/signal-cli-rest-apisha256:2cf09d66a86fdd210e42ee91662216364acc27da1163a8c44167a77ea3a6559a  # 0.101
+    <<: *common
+    networks:
+      - only-cats
+    expose:
+      - 8080
+    environment:
+      MODE: native
+    volumes:
+      - resin-data:/home/.local/share/signal-cli
+
   iwatch-ulock:
     build: .
     <<: *common
