@@ -98,8 +98,10 @@ services:
           --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
           --entrypoints.cam-tcp.address=:444 \
           --entrypoints.web.address=:80 \
+          --entrypoints.web.http.aliasHeadersStrategy=reject \
           --entrypoints.web.forwardedHeaders.insecure=true \
           --entrypoints.websecure.address=:443 \
+          --entrypoints.websecure.http.aliasHeadersStrategy=reject \
           --metrics.prometheus.addrouterslabels=true \
           --metrics.prometheus.addserviceslabels=true \
           --metrics.prometheus=true \
