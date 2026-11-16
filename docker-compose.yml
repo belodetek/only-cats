@@ -19,7 +19,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "444:444"  # Reolink camera tunnel(s)
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -58,6 +57,21 @@ services:
               middlewares:
                 - dashboard-redirect
               service: api@internal
+            cat-cam-1:
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/cctv1`)'
+              entryPoints:
+                - web
+              priority: 400
+              middlewares:
+                - cam-1-redirect
+                - cam-1-strip
+              service: cat-cam-1-svc
+            cat-cam-1-assets:
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`))'
+              entryPoints:
+                - web
+              priority: 400
+              service: cat-cam-1-svc
           middlewares:
             redirect-scheme-https:
               redirectScheme:
@@ -67,22 +81,23 @@ services:
               redirectRegex:
                 regex: '^(https?://[^/]+/dashboard)$'
                 replacement: '${1}/'
+            cam-1-redirect:
+              redirectRegex:
+                regex: '^(https?://[^/]+/cctv1)$$'
+                replacement: '$${1}/'
+            cam-1-strip:
+              stripPrefix:
+                prefixes:
+                  - /cctv1
         tcp:
-          routers:
-            cat-cam-1:
-              rule: 'HostSNI(`*`)'
-              entryPoints:
-                - cam-tcp
-              tls:
-                passthrough: true
-              service: cat-cam-1-svc
           services:
-            # balena device tunnel deadbeef -p 444:8444
-            # open https://localhost:8444
             cat-cam-1-svc:
               loadBalancer:
                 servers:
                   - address: '{{ env "CAT_CAM_1" }}:443'
+          serversTransports:
+            reolink-transport:
+              insecureSkipVerify: true  # Reolink
         EOF
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
@@ -94,7 +109,6 @@ services:
           --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
           --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
           --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
-          --entrypoints.cam-tcp.address=:444 \
           --entrypoints.web.address=:80 \
           --entrypoints.web.http.aliasHeadersStrategy=reject \
           --entrypoints.web.forwardedHeaders.insecure=true \
