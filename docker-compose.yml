@@ -108,7 +108,7 @@ services:
           --metrics.prometheus=true \
           --ping.entrypoint=ping \
           --ping=true \
-          --providers.docker.defaultRule='Host(`{{ env "DOMAIN_NAME" }}`)' \
+          --providers.docker.defaultRule='Host(`{{ env "DOMAIN_NAME" }}`) || HostRegexp(`^.+\.balena-devices\.com$`)' \
           --providers.docker.exposedbydefault=false \
           --providers.docker.network=only-cats \
           --providers.docker=true \
