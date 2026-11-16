@@ -83,8 +83,8 @@ services:
                 replacement: '${1}/'
             cam-1-redirect:
               redirectRegex:
-                regex: '^(https?://[^/]+/cctv1)$$'
-                replacement: '$${1}/'
+                regex: '^(https?://[^/]+/cctv1)$'
+                replacement: '${1}/'
             cam-1-strip:
               stripPrefix:
                 prefixes:
