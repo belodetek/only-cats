@@ -56,20 +56,20 @@
                          | 7a. Trigger Lock   |     | 7b. Discard Frame |
                          |     Hold b'L' loop |     |     No lock state |
                          |     for 300 sec    |     |     change        |
-                         +----------+---------+     +-------------------+
-                                    |
-                                    v
-                         +---------------------+
-                         | 8. BackgroundTasks  |
-                         |    Offload Disk I/O |
-                         +----------+----------+
-                                    |
-                                    v
-                         +-----------------------+
-                         | 9. Persist Dataset    |
-                         |    /data/images/*.jpg |
-                         |    /data/labels/*.txt |
-                         +-----------------------+
+                         +-+----------------+-+     +-------------------+
+                           |                |
+                           v                v
+      +-----------------------+          +-----------------------------+
+      | 8. BackgroundTasks    |          | 8.1 trigger snack dispenser |
+      |    Offload Disk I/O   |          |     on_lockout_expired      |
+      +----------+------------+          +-----------------------------+
+                 |
+                 v
+      +-----------------------+
+      | 9. Persist Dataset    |
+      |    /data/images/*.jpg |
+      |    /data/labels/*.txt |
+      +-----------------------+
 ```
 
 ## physical(ish) wiring diagram
