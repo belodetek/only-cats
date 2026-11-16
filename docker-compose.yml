@@ -89,12 +89,11 @@ services:
               stripPrefix:
                 prefixes:
                   - /cctv1
-        tcp:
           services:
             cat-cam-1-svc:
               loadBalancer:
                 servers:
-                  - address: '{{ env "CAT_CAM_1" }}:443'
+                  - url: 'https://{{ env "CAT_CAM_1" }}:443'
         EOF
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
