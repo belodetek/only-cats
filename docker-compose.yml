@@ -51,16 +51,7 @@ services:
                 - balena-https-proto
               service: oauth2-proxy-svc
             dashboard:
-              rule: 'PathPrefix(`/api`) || PathPrefix(`/dashboard`)'
-              entryPoints:
-                - websecure
-              middlewares:
-                - dashboard-redirect
-              service: api@internal
-              tls:
-                certResolver: letsencrypt
-            dashboard-forwarded:
-              rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Header(`X-Forwarded-Proto`, `https`)) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
               entryPoints:
                 - web
               priority: 500
@@ -89,24 +80,6 @@ services:
                 - balena-https-proto
                 - oauth2-auth
               service: cat-cam-1-svc
-            # auth. via Public Device URL(s)
-            iwatch-balena:
-              rule: 'HostRegexp(`^.+\.balena-devices\.com$`)'
-              entryPoints:
-                - web
-              priority: 100
-              middlewares:
-                - balena-https-proto
-                - oauth2-auth
-              service: iwatch-ulock-svc
-            # LAN (via IP), no auth. (HTTP)
-            iwatch-lan:
-              rule: '!HostRegexp(`^.+\.balena-devices\.com$`)'
-              entryPoints:
-                - web
-              priority: 100
-              service: iwatch-ulock-svc
-            # LAN, no auth. (HTTPS)
             iwatch:
               rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
               entryPoints:
@@ -114,16 +87,7 @@ services:
               service: iwatch-ulock-svc
               tls:
                 certResolver: letsencrypt
-
           middlewares:
-            balena-https-proto:
-              headers:
-                customRequestHeaders:
-                  X-Forwarded-Proto: https
-            redirect-scheme-https:
-              redirectScheme:
-                scheme: https
-                permanent: true
             oauth2-auth:
               forwardAuth:
                 address: http://oauth2-proxy:4180/
@@ -132,6 +96,14 @@ services:
                   - X-Auth-Request-User
                   - X-Auth-Request-Email
                   - Authorization
+            redirect-scheme-https:
+              redirectScheme:
+                scheme: https
+                permanent: true
+            balena-https-proto:
+              headers:
+                customRequestHeaders:
+                  X-Forwarded-Proto: https
             dashboard-redirect:
               redirectRegex:
                 regex: '^(https?://[^/]+/dashboard)$'
@@ -144,7 +116,6 @@ services:
               stripPrefix:
                 prefixes:
                   - /cctv1
-
           services:
             oauth2-proxy-svc:
               loadBalancer:
@@ -247,6 +218,6 @@ services:
         cat << 'EOF' > /etc/ofelia.conf
         [job-local "purge-training-data"]
         schedule = 4 2 0 * * *
-        command = sh -c "find /data/images /data/labels -type f \( -name '*.jpg' -o -name '*.txt' \) -mtime +90 -delete"
+        command = sh -c "find /data/images /data/labels -type f \\( -name '*.jpg' -o -name '*.txt' \\) -mtime +90 -delete"
         EOF
         exec /usr/bin/ofelia daemon --config=/etc/ofelia.conf
