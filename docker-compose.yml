@@ -35,9 +35,7 @@ services:
         http:
           routers:
             redirect-to-https:
-              rule: |
-                !HostRegexp(`^.+\.balena-devices\.com$`)
-                && !Header(`X-Forwarded-Proto`, `https`)
+              rule: '!HostRegexp(`^.+\.balena-devices\.com$`) && !Header(`X-Forwarded-Proto`, `https`)'
               entryPoints:
                 - web
               priority: 1000
@@ -45,15 +43,13 @@ services:
                 - redirect-scheme-https
               service: noop@internal
             oauth2-proxy:
-              rule: |
-                HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/oauth2`)
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/oauth2`)'
               entryPoints:
                 - web
               priority: 600
               service: oauth2-proxy-svc
             dashboard:
-              rule: |
-                PathPrefix(`/api`) || PathPrefix(`/dashboard`)
+              rule: 'PathPrefix(`/api`) || PathPrefix(`/dashboard`)'
               entryPoints:
                 - websecure
               middlewares:
@@ -62,14 +58,7 @@ services:
               tls:
                 certResolver: letsencrypt
             dashboard-forwarded:
-              rule: |
-                (
-                  HostRegexp(`^.+\.balena-devices\.com$`)
-                  || Header(`X-Forwarded-Proto`, `https`)
-                ) && (
-                  PathPrefix(`/api`)
-                  || PathPrefix(`/dashboard`)
-                )
+              rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Header(`X-Forwarded-Proto`, `https`)) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
               entryPoints:
                 - web
               priority: 500
@@ -78,8 +67,7 @@ services:
                 - dashboard-redirect
               service: api@internal
             cat-cam-1:
-              rule: |
-                HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/cctv1`)
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/cctv1`)'
               entryPoints:
                 - web
               priority: 400
@@ -89,18 +77,8 @@ services:
                 - cam-1-strip
               service: cat-cam-1-svc
             cat-cam-1-assets:
-              rule: |
-                HostRegexp(`^.+\.balena-devices\.com$`)
-                && (
-                  PathPrefix(`/cgi-bin`)
-                  || PathPrefix(`/flv`)
-                  || PathPrefix(`/js`)
-                  || PathPrefix(`/css`)
-                  || PathPrefix(`/img`)
-                  || PathPrefix(`/fonts`)
-                  || Path(`/login.html`)
-                  || Path(`/index.html`)
-                )
+              rule: '
+                HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/flv`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`))'
               entryPoints:
                 - web
               priority: 400
