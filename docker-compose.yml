@@ -4,6 +4,7 @@ version: '2.4'
 
 volumes:
   resin-data: {}
+  signal-data: {}
 
 networks:
   only-cats:
@@ -217,7 +218,7 @@ services:
     environment:
       MODE: native
     volumes:
-      - resin-data:/home/.local/share/signal-cli
+      - signal-data:/home/.local/share/signal-cli
 
   iwatch-ulock:
     build: .
@@ -257,6 +258,12 @@ services:
         cat << 'EOF' > /etc/ofelia.conf
         [job-local "purge-training-data"]
         schedule = 4 2 0 * * *
-        command = sh -c "find /data/images /data/labels -type f \\( -name '*.jpg' -o -name '*.txt' \\) -mtime +90 -delete"
+        command = sh -c "find /data/images /data/labels -type f \( -name '*.jpg' -o -name '*.txt' \) -mtime +90 -delete"
         EOF
         exec /usr/bin/ofelia daemon --config=/etc/ofelia.conf
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/bin/ofelia validate --config=/etc/ofelia.conf && pgrep ofelia"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
