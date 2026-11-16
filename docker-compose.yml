@@ -34,15 +34,13 @@ services:
         http:
           routers:
             redirect-to-https:
-              rule: 'HostRegexp(`.+`) && !Header(`X-Forwarded-Proto`, `https`)'
+              rule: '!HostRegexp(`^.+\.balena-devices\.com$`) && !Header(`X-Forwarded-Proto`, `https`)'
               entryPoints:
                 - web
               priority: 1000
               middlewares:
                 - redirect-scheme-https
               service: noop@internal
-            # balena device tunnel deadbeef -p 443:8443
-            # open https://localhost:8443/dashboard
             dashboard:
               rule: 'PathPrefix(`/api`) || PathPrefix(`/dashboard`)'
               entryPoints:
