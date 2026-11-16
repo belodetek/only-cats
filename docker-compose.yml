@@ -88,7 +88,16 @@ services:
                 - balena-https-proto
                 - oauth2-auth
               service: cat-cam-1-svc
-            iwatch:
+            root-to-cam:
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && Path(`/`)'
+              entryPoints:
+                - web
+              priority: 300
+              middlewares:
+                - balena-https-proto
+                - root-cam-redirect
+              service: noop@internal
+            iwatch-ublock:
               rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
               entryPoints:
                 - websecure
@@ -112,6 +121,10 @@ services:
               headers:
                 customRequestHeaders:
                   X-Forwarded-Proto: https
+            root-redirect:
+              redirectRegex:
+                regex: '^https?://([^/]+)/?$'
+                replacement: 'https://${1}/cctv1/'
             dashboard-redirect:
               redirectRegex:
                 regex: '^(https?://[^/]+/dashboard)$'
