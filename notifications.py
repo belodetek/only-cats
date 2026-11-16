@@ -17,7 +17,7 @@ logger = logging.getLogger("signal-notify")
 
 
 def _encode_attachment(file_path: Path, mime_type: str) -> str | None:
-    if not file_path.is_file():
+    if not file_path.is_file() or file_path.stat().st_size == 0:
         return None
     raw = file_path.read_bytes()
     b64 = base64.b64encode(raw).decode("ascii")
