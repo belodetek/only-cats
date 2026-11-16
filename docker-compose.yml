@@ -34,7 +34,7 @@ services:
         cat << 'EOF' > /etc/traefik/dynamic.yml
         http:
           routers:
-            # balena device tunnel deadbeef -p 444:8443
+            # balena device tunnel deadbeef -p 443:8443
             # open https://localhost:8443/dashboard
             dashboard:
               rule: 'PathPrefix(`/api`) || PathPrefix(`/dashboard`)'
