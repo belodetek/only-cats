@@ -51,7 +51,7 @@ services:
               tls:
                 certResolver: letsencrypt
             dashboard-forwarded:
-              rule: 'Header(`X-Forwarded-Proto`, `https`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+              rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Header(`X-Forwarded-Proto`, `https`)) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
               entryPoints:
                 - web
               priority: 500
