@@ -85,6 +85,31 @@ services:
               middlewares:
                 - oauth2-auth
               service: cat-cam-1-svc
+            # auth. via Public Device URL(s)
+            iwatch-balena:
+              rule: 'HostRegexp(`^.+\.balena-devices\.com$`)'
+              entryPoints:
+                - web
+              priority: 100
+              middlewares:
+                - oauth2-auth
+              service: iwatch-ulock-svc
+            # LAN (via IP), no auth. (HTTP)
+            iwatch-lan:
+              rule: '!HostRegexp(`^.+\.balena-devices\.com$`)'
+              entryPoints:
+                - web
+              priority: 100
+              service: iwatch-ulock-svc
+            # LAN, no auth. (HTTPS)
+            iwatch:
+              rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
+              entryPoints:
+                - websecure
+              service: iwatch-ulock-svc
+              tls:
+                certResolver: letsencrypt
+
           middlewares:
             redirect-scheme-https:
               redirectScheme:
@@ -110,6 +135,7 @@ services:
               stripPrefix:
                 prefixes:
                   - /cctv1
+
           services:
             oauth2-proxy-svc:
               loadBalancer:
@@ -119,6 +145,10 @@ services:
               loadBalancer:
                 servers:
                   - url: https://{{ env "CAT_CAM_1" }}:443
+            iwatch-ulock-svc:
+              loadBalancer:
+                servers:
+                  - url: http://iwatch-ulock:8000
         EOF
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
@@ -166,16 +196,10 @@ services:
       - 4180
     environment:
       OAUTH2_PROXY_PROVIDER: github
-      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID}
-      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
-      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_UPSTREAMS: static://202
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
-      OAUTH2_PROXY_REDIRECT_URL: ${OAUTH2_PROXY_REDIRECT_URL}
-      OAUTH2_PROXY_GITHUB_ORG: ${OAUTH2_PROXY_GITHUB_ORG}
-      OAUTH2_PROXY_GITHUB_TEAM: ${OAUTH2_PROXY_GITHUB_TEAM}
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_SKIP_AUTH_PREFLIGHT: "true"
@@ -205,13 +229,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 15s
-    labels:
-      traefik.enable: true
-      traefik.http.routers.iwatch-http.entrypoints: web
-      traefik.http.routers.iwatch.entrypoints: websecure
-      traefik.http.routers.iwatch.tls: true
-      traefik.http.routers.iwatch.tls.certresolver: letsencrypt
-      traefik.http.services.iwatch.loadbalancer.server.port: 8000
 
   # https://github.com/mcuadros/ofelia
   ipurge:
