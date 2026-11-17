@@ -10,6 +10,8 @@ and dispatches Signal alerts with event metadata, labels, and snapshot.
 """
 
 import asyncio
+import hmac
+import ipaddress
 import logging
 import os
 import time
@@ -23,7 +25,7 @@ from typing import Any, Optional
 import cv2
 import httpx
 import numpy as np
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
@@ -211,10 +213,36 @@ def _resolve_camera_url(client_host: Optional[str]) -> str:
     default_url = config.camera_url
     if not client_host or client_host == "unknown":
         return default_url
+
+    try:
+        ip = ipaddress.ip_address(client_host)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid client IP") from exc
+
+    # Reject localhost, link-local (169.254.x.x), or non-LAN IPs
+    if (
+        ip.is_loopback
+        or ip.is_link_local
+        or not any(ip in net for net in config.camera_networks)
+    ):
+        raise HTTPException(
+            status_code=403, detail="Client IP not in trusted camera subnet"
+        )
+
     host = f"[{client_host}]" if ":" in client_host else client_host
     return (
         f"https://{host}"  # assume HTTPS by default (configure via Reolink web admin)
     )
+
+
+def _run_inference(model: YOLO, img_array: np.ndarray, conf: float):
+    # pylint: disable=no-member
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    # pylint: enable=no-member
+    if img is None:
+        return None, None
+    results = model.predict(source=img, conf=conf, verbose=False)
+    return img, results
 
 
 async def fetch_and_evaluate(
@@ -250,19 +278,16 @@ async def fetch_and_evaluate(
             return
 
         img_array = np.frombuffer(resp.content, dtype=np.uint8)
-        # pylint: disable=no-member
-        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-        # pylint: enable=no-member
+
+        t1 = time.perf_counter()
+        img, results = await asyncio.to_thread(
+            _run_inference, state.model, img_array, config.conf_threshold
+        )
+        infer_ms = (time.perf_counter() - t1) * 1000
 
         if img is None:
             logger.error("Failed to decode snapshot bytes into image array.")
             return
-
-        t1 = time.perf_counter()
-        results = state.model.predict(
-            source=img, conf=config.conf_threshold, verbose=False
-        )
-        infer_ms = (time.perf_counter() - t1) * 1000
 
         is_test = bool(
             webhook_event and str(webhook_event.get("alarm_type", "")).upper() == "TEST"
@@ -329,8 +354,25 @@ async def fetch_and_evaluate(
 
 
 @app.post("/webhook/reolink")
-async def reolink_webhook(request: Request, background_tasks: BackgroundTasks) -> dict:
+async def reolink_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    secret: Optional[str] = Query(
+        None, description="Webhook shared secret via query param"
+    ),
+    x_webhook_secret: Optional[str] = Header(
+        None, alias="X-Webhook-Secret", description="Webhook shared secret via header"
+    ),
+) -> dict:
     """Handle incoming motion alert webhooks dispatched by the Reolink camera."""
+    provided_secret = secret or x_webhook_secret
+    if (
+        not config.webhook_secret
+        or not provided_secret
+        or not hmac.compare_digest(provided_secret, config.webhook_secret)
+    ):
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
     client_host = request.client.host if request.client else None
     client_port = request.client.port if request.client else "unknown"
     headers = dict(request.headers)

@@ -1,5 +1,6 @@
 """config class"""
 
+import ipaddress
 import os
 import random
 
@@ -9,13 +10,23 @@ app_name = os.getenv("APP_NAME", "iwatch-ulock")
 # Reolink camera settings
 # 1. enable HTTPS in the mobile app
 # 2. turn off "Enable UID" under Network/Advanced for privacy (disables mobile app access)
-# 3. Surveillance/push: set Webhook URL http://<fast-api-ip-host-or-fqdn>:8000/webhook/reolink
+# 3. Surveillance/push: set Webhook URL
+#    e.g. http://<fast-api-ip-host-or-fqdn>:8000/webhook/reolink?secret={{WEBHOOK_SECRET}}
 camera_url = os.getenv(
     "CAMERA_URL"
 )  # http(s)://10.42.84.168 (resolved from client request and assumes HTTPS, if unset)
 camera_user = os.getenv("CAMERA_USER", "admin")  # recommend creating a read-only user
 camera_password = os.getenv("CAMERA_PASSWORD")
 camera_channel = int(os.getenv("CAMERA_CHANNEL", "0"))
+camera_networks = os.getenv(
+    "CAMERA_NETWORKS", "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
+)
+camera_networks = {
+    ipaddress.ip_network(item.strip())
+    for item in camera_networks.split(",")
+    if item.strip()
+}
+webhook_secret = os.getenv("WEBHOOK_SECRET")
 
 model_weights_path = os.getenv("MODEL_WEIGHTS_PATH", "best_openvino_model")
 data_root = os.getenv("DATA_DIR", "/data")

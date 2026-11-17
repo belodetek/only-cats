@@ -1,3 +1,4 @@
+# pylint: disable=broad-exception-caught
 """USB serial controller for the ESP32 door lock and lockout timer."""
 
 import logging
@@ -87,8 +88,11 @@ class ESP32SerialController:
                     should_dispense = True
 
             if should_dispense and self.state.on_expired:
-                logger.info("Prey lockout expired; triggering dispenser callback.")
-                self.state.on_expired()
+                try:
+                    logger.info("Prey lockout expired; triggering dispenser callback.")
+                    self.state.on_expired()
+                except Exception as exc:
+                    logger.error("Error in on_lockout_expired callback: %s", exc)
 
             self._stop_event.wait(config.command_interval_sec)
 

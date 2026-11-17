@@ -15,7 +15,9 @@ def test_trigger_lock_sends_keepalive_and_fires_expiration_once(monkeypatch):
     expired_events = []
 
     with patch("esp32.serial.Serial", return_value=mock_serial_instance):
-        ctrl = esp32.ESP32SerialController("/dev/ttyACM0", 115200)
+        ctrl = esp32.ESP32SerialController(
+            esp32.config.serial_port, esp32.config.baud_rate
+        )
         ctrl.on_lockout_expired = lambda: expired_events.append(time.time())
         with patch("esp32.time.sleep"):
             ctrl.connect()
@@ -40,7 +42,9 @@ def test_trigger_lock_without_dispense_skips_expiration_callback(monkeypatch):
     expired_events = []
 
     with patch("esp32.serial.Serial", return_value=mock_serial_instance):
-        ctrl = esp32.ESP32SerialController("/dev/ttyACM0", 115200)
+        ctrl = esp32.ESP32SerialController(
+            esp32.config.serial_port, esp32.config.baud_rate
+        )
         ctrl.on_lockout_expired = lambda: expired_events.append(True)
         with patch("esp32.time.sleep"):
             ctrl.connect()

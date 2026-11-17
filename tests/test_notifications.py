@@ -11,15 +11,9 @@ import notifications
 
 @pytest.mark.asyncio
 async def test_send_signal_prey_alert_includes_json_labels_and_attachments(
-    tmp_path, monkeypatch
+    tmp_path,
 ):
     """Verify non-empty label file and JPEG are attached and formatted in message."""
-    monkeypatch.setattr(
-        notifications.config, "signal_api_url", "http://signal-api:8080"
-    )
-    monkeypatch.setattr(notifications.config, "signal_sender", "+12505550100")
-    monkeypatch.setattr(notifications.config, "signal_recipients", ["group.abc123="])
-
     img_file = tmp_path / "prey_1.jpg"
     img_file.write_bytes(b"\xff\xd8\xff\xe0fakejpeg")
     lbl_file = tmp_path / "prey_1.txt"
@@ -39,11 +33,11 @@ async def test_send_signal_prey_alert_includes_json_labels_and_attachments(
 
     mock_client.post.assert_awaited_once()
     url, kwargs = mock_client.post.call_args[0][0], mock_client.post.call_args[1]
-    assert url == "http://signal-api:8080/v2/send"
+    assert url == f"{notifications.config.signal_api_url}/v2/send"
 
     payload = kwargs["json"]
-    assert payload["number"] == "+12505550100"
-    assert payload["recipients"] == ["group.abc123="]
+    assert payload["number"] == notifications.config.signal_sender
+    assert payload["recipients"] == notifications.config.signal_recipients
     assert '"alarm_type": "MD"' in payload["message"]
     assert "0 0.500000 0.500000 0.250000 0.250000" in payload["message"]
     assert len(payload["base64_attachments"]) == 2
@@ -56,11 +50,8 @@ async def test_send_signal_prey_alert_includes_json_labels_and_attachments(
 
 
 @pytest.mark.asyncio
-async def test_send_signal_skips_empty_label_file(tmp_path, monkeypatch):
+async def test_send_signal_skips_empty_label_file(tmp_path):
     """Verify 0-byte label files (from TEST events) are omitted to prevent 400 errors."""
-    monkeypatch.setattr(notifications.config, "signal_sender", "+12505550100")
-    monkeypatch.setattr(notifications.config, "signal_recipients", ["+12505550199"])
-
     img_file = tmp_path / "test_1.jpg"
     img_file.write_bytes(b"jpegdata")
     empty_lbl = tmp_path / "test_1.txt"
