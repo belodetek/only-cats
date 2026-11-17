@@ -94,12 +94,15 @@ class ESP32SerialController:
 
     def trigger_lock(
         self,
-        duration: float = config.lockout_duration_sec,
+        duration: Optional[float] = None,
         dispense_on_expire: bool = True,
     ) -> None:
         """Engage the lock and send 'L' for the specified duration."""
+        effective_duration = (
+            config.lockout_duration_sec if duration is None else duration
+        )
         with self.lock:
-            new_target = time.time() + duration
+            new_target = time.time() + effective_duration
             self.state.until = max(self.state.until, new_target)
             if dispense_on_expire:
                 self.state.pending_dispense = True
@@ -110,7 +113,7 @@ class ESP32SerialController:
                     pass
             logger.warning(
                 ">>> PREY LOCKOUT ACTIVATED: Holding lock ON for %.1fs (until %s)",
-                duration,
+                effective_duration,
                 time.strftime("%H:%M:%S", time.localtime(self.state.until)),
             )
 
