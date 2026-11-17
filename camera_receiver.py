@@ -74,7 +74,7 @@ async def lifespan(app_instance: FastAPI):
         chip=getattr(config, "esp_chip", "esp32c6"),
         baud=getattr(config, "esp_flash_baud", 460800),
         bin_path=getattr(
-            config, "firmware_bin_path", "firmware_bin/firmware_sketch.ino.bin"
+            config, "firmware_bin_path", "firmware/bin/firmware_sketch.ino.bin"
         ),
     )
 
@@ -195,7 +195,7 @@ def _persist_training_pair(
 
 async def _persist_and_notify(
     img: np.ndarray,
-    result: Results,
+    result: Optional[Results],
     event_data: dict[str, Any],
 ) -> None:
     """Save training pair to disk first, then send Signal prey alert with attachments."""
