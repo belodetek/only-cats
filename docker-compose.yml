@@ -91,6 +91,12 @@ services:
       MODE: native
     volumes:
       - signal-data:/home/.local/share/signal-cli
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   iwatch-ulock:
     build: .
