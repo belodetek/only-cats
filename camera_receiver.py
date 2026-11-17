@@ -73,9 +73,7 @@ async def lifespan(app_instance: FastAPI):
         port=config.serial_port,
         chip=getattr(config, "esp_chip", "esp32c6"),
         baud=getattr(config, "esp_flash_baud", 460800),
-        bin_path=getattr(
-            config, "firmware_bin_path", "firmware/bin/firmware_sketch.ino.bin"
-        ),
+        bin_path=getattr(config, "firmware_bin_path", "flash/firmware_sketch.ino.bin"),
     )
 
     state.controller = ESP32SerialController(config.serial_port, config.baud_rate)
