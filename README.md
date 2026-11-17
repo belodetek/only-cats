@@ -1,5 +1,7 @@
 # onlyCat(s)
-> Border Services Agency, preventing contraband entering the catflap.
+> 🐈‍⬛+🐈‍⬛ Border Services Agency - preventing contraband entering the cat-flap.
+
+[![balena deploy button](https://www.balena.io/deploy.svg)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/belodetek/only-cats)
 
 ## BoM
 
@@ -19,34 +21,34 @@
 +--------------------+                +---------------------------+
 | REOLINK PoE CAMERA |                |         INTEL NUC         |
 |  (IP / Local)      |                |   (FastAPI on Port 8000   |
-+-------+------------+                +-------------+-------------+
-        |                                           |
-        | 1. Motion Detected                        |
-        |    POST /webhook/reolink                  |
-        |    (JSON payload: event alarm)            |
-        +------------------------------------------>|  [reolink_webhook]
-        |                                           |  Enqueues evaluation
-        |<------------------------------------------+  task via BackgroundTasks
-        | 2. HTTP 200 {"status": "queued"}          |
-        |    (Connection closed immediately)        |
-        |                                           v
-        |                                [fetch_and_evaluate]
-        |                                (Async background worker)
-        |                                           |
-        | 3. GET /cgi-bin/api.cgi?cmd=Snap          |
-        |<------------------------------------------+  (Fetch raw snapshot bytes)
-        |                                           |
-        | 4. JPEG Snapshot Image Stream             |
-        +------------------------------------------>|
-                                                    |
-                                                    | 5. cv2.imdecode()
-                                                    |    Decode buffer to array
-                                                    |
-                                                    | 6. YOLO / OpenVINO Infer
-                                                    |    Predict bounding boxes
-                                                    |
-                                                    |
-                                                    |
++-----+--------------+                +-----------+---------------+
+      |                                           |
+      | 1. Motion Detected                        |
+      |    POST /webhook/reolink                  |
+      |    (JSON payload: event alarm)            |
+      +------------------------------------------>| [reolink_webhook]
+      |                                           | Enqueues evaluation
+      |<------------------------------------------+ task via BackgroundTasks
+      | 2. HTTP 200 {"status": "queued"}          |
+      |    (Connection closed immediately)        |
+      |                                           v
+      |                                [fetch_and_evaluate]
+      |                                (Async background worker)
+      |                                           |
+      | 3. GET /cgi-bin/api.cgi?cmd=Snap          |
+      |<------------------------------------------+ (Fetch raw snapshot bytes)
+      |                                           |
+      | 4. JPEG Snapshot Image Stream             |
+      +------------------------------------------>|
+                                                  |
+                                                  | 5. cv2.imdecode()
+                                                  |    Decode buffer to array
+                                                  |
+                                                  | 6. YOLO / OpenVINO Infer
+                                                  |    Predict bounding boxes
+                                                  |
+                                                  |
+                                                  |
                                            [Prey Detected?]
                                             /           \
                                       YES  /             \  NO
@@ -61,7 +63,7 @@
       +-----------------------+          +-----------------------------+
       | 8. BackgroundTasks    |          | 8.1 trigger snack dispenser |
       |    Offload Disk I/O   |          |     on_lockout_expired      |
-      +----------+------------+          +-----------------------------+
+      +-+-------------------+-+          +-----------------------------+
         |                   |
         v                   v
 +------------------+     +---------------------+

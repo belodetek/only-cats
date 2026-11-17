@@ -13,7 +13,9 @@ assets:
       url: >-
         https://raw.githubusercontent.com/belodetek/only-cats/master/logo.png
 data:
-  applicationEnvironmentVariables: []
+  applicationEnvironmentVariables:
+    - TRAEFIK_LOG_LEVEL: INFO
+    - CONF_THRESHOLD: 0.70  # YOLO model confidence threshold
   applicationConfigVariables: []
   defaultDeviceType: generic-amd64
   supportedDeviceTypes:
