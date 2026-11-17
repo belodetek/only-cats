@@ -50,6 +50,7 @@ services:
           --metrics.prometheus=true \
           --ping.entrypoint=traefik \
           --ping=true \
+          --providers.file.filename=/etc/traefik/balena.yml \
           --serversTransport.insecureSkipVerify=true
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]

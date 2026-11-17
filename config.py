@@ -17,7 +17,7 @@ camera_user = os.getenv("CAMERA_USER", "admin")  # recommend creating a read-onl
 camera_password = os.getenv("CAMERA_PASSWORD")
 camera_channel = int(os.getenv("CAMERA_CHANNEL", "0"))
 
-model_weights_path = os.getenv("MODEL_WEIGHTS_PATH", "weights/best_openvino_model")
+model_weights_path = os.getenv("MODEL_WEIGHTS_PATH", "best_openvino_model")
 data_root = os.getenv("DATA_DIR", "/data")
 images_dir = os.path.join(data_root, os.getenv("IMAGES_DIR", "images"))
 labels_dir = os.path.join(data_root, os.getenv("LABELS_DIR", "labels"))
