@@ -1,7 +1,7 @@
 name: only-cats
 type: sw.application
 description: >-
-  Border Services Agency, preventing contraband entering the catflap.
+  Border Services Agency - preventing contraband entering the cat-flap
 assets:
   repository:
     type: blob.asset

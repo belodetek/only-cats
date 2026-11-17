@@ -30,8 +30,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        # not possible to use env-var(s) in labels in balena-compose
         mkdir -p /etc/traefik
+
         cat << 'EOF' > /etc/traefik/dynamic.yml
         http:
           routers:
@@ -158,6 +158,7 @@ services:
                 servers:
                   - url: http://iwatch-ulock:8000
         EOF
+
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
           --accesslog.format=common \
