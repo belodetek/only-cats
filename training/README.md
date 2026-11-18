@@ -41,7 +41,7 @@
     # scp in your own training images from live runtime
     scp-uuid -r {{uuid}}.balena:/mnt/data/docker/volumes/{{volume-id}}_resin-data/_data/images tune/
 
-    # beware overwriting generated labels
+    # beware overwriting manually generated labels
     scp-uuid -r {{uuid}}.balena:/mnt/data/docker/volumes/{{volume-id}}_resin-data/_data/labels tune/
 
     # manually generate labels (prey coordinates in image) and verify
