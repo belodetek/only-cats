@@ -44,6 +44,8 @@ def _isolate_config_defaults(monkeypatch):
     monkeypatch.setattr(config, "firmware_bin_path", "flash/firmware_sketch.ino.bin")
     monkeypatch.setattr(config, "serial_port", "/dev/null")
     monkeypatch.setattr(config, "baud_rate", 115200)
+    monkeypatch.setattr(config, "serial_reconnect_base_delay_sec", 0.05)
+    monkeypatch.setattr(config, "serial_reconnect_max_delay_sec", 0.2)
 
 
 @pytest.fixture

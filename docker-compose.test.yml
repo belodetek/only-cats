@@ -4,7 +4,7 @@ services:
   sut:
     build: .
     command: >
-      sh -c "pip install --no-cache-dir pytest pytest-asyncio &&
+      sh -c "pip install --no-cache-dir pytest pytest-asyncio httpx2
              pytest -v --tb=short tests/"
     environment:
       LOG_LEVEL: DEBUG

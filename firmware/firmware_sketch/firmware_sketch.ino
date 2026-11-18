@@ -3,9 +3,11 @@
  *
  * Logic:
  *  - Default state: Relay OFF (De-energized / Door Unlocked).
- *  - If 'L' (Lock command) is received, relay energizes (Door LOCKED).
+ *  - If 'L' (Lock command) is received, relay energizes (Door LOCKED) and replies "ACK:L".
+ *  - If 'U' (Unlock command) is received, relay de-energizes immediately and replies "ACK:U".
+ *  - If 'P' (Ping/Heartbeat) is received, replies "ACK:P:LOCKED" or "ACK:P:UNLOCKED".
  *  - If no 'L' command is received for > 3000ms (lockout ends or NUC crashes),
- *    relay immediately turns OFF (Door Unlocked).
+ *    relay immediately turns OFF (Door Unlocked) and emits "EVENT:TIMEOUT_UNLOCK".
  */
 
 #include <Arduino.h>
@@ -49,6 +51,7 @@ void setup() {
   setRelayState(false);
 
   delay(100);
+  Serial.println("READY:ULOCK");
 }
 
 void loop() {
@@ -56,16 +59,27 @@ void loop() {
   while (Serial.available() > 0) {
     char cmd = static_cast<char>(Serial.read());
     if (cmd == 'L') {
-      // Prey active: energize relay to lock
+      // Prey active: energize relay to lock and refresh fail-safe timer
       lastLockCommandTime = millis();
       if (!isLocked) {
         setRelayState(true);
       }
+      Serial.println("ACK:L");
+    } else if (cmd == 'U') {
+      // Explicit unlock command
+      if (isLocked) {
+        setRelayState(false);
+      }
+      Serial.println("ACK:U");
+    } else if (cmd == 'P') {
+      // Health ping so host can verify MCU is responsive even when unlocked
+      Serial.println(isLocked ? "ACK:P:LOCKED" : "ACK:P:UNLOCKED");
     }
   }
 
-  // Timeout: if no 'L' received within 3s, drop back to default OFF (Unlocked)
+  // Fail-safe timeout: if no 'L' received within 3s, drop back to default OFF (Unlocked)
   if (isLocked && (millis() - lastLockCommandTime > LOCK_TIMEOUT_MS)) {
     setRelayState(false);
+    Serial.println("EVENT:TIMEOUT_UNLOCK");
   }
 }

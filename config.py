@@ -32,7 +32,6 @@ model_weights_path = os.getenv("MODEL_WEIGHTS_PATH", "best_openvino_model")
 data_root = os.getenv("DATA_DIR", "/data")
 images_dir = os.path.join(data_root, os.getenv("IMAGES_DIR", "images"))
 labels_dir = os.path.join(data_root, os.getenv("LABELS_DIR", "labels"))
-
 # set to capture training data
 in_training = os.getenv("IN_TRAINING", "false").strip().lower() in (
     "1",
@@ -40,7 +39,6 @@ in_training = os.getenv("IN_TRAINING", "false").strip().lower() in (
     "yes",
     "on",
 )
-
 conf_threshold = float(os.getenv("CONF_THRESHOLD", "0.55"))
 target_classes = os.getenv("TARGET_CLASSES", "prey")
 target_classes = {item.strip() for item in target_classes.split(",") if item.strip()}
@@ -49,14 +47,18 @@ target_classes = {item.strip() for item in target_classes.split(",") if item.str
 # Seeed XIAO ESP32-S3: esp32s3
 # Seeed XIAO ESP32-C6: esp32c6
 esp_chip = os.getenv("ESP_CHIP", "esp32c6")
-
 esp_flash_baud = int(os.getenv("ESP_FLASH_BAUD", "460800"))
 firmware_bin_path = os.getenv("FIRMWARE_BIN_PATH", "flash/firmware_sketch.ino.bin")
 serial_port = os.getenv("SERIAL_PORT", "/dev/ttyACM0")
 baud_rate = int(os.getenv("BAUD_RATE", "115200"))
-
 command_interval_sec = float(os.getenv("COMMAND_INTERVAL_SEC", "1.0"))
 lockout_duration_sec = float(os.getenv("LOCKOUT_DURATION_SEC", "300.0"))
+serial_reconnect_base_delay_sec = float(
+    os.getenv("SERIAL_RECONNECT_BASE_DELAY_SEC", "1.0")
+)
+serial_reconnect_max_delay_sec = float(
+    os.getenv("SERIAL_RECONNECT_MAX_DELAY_SEC", "30.0")
+)
 
 # Kibblenetes API: https://github.com/belodetek/pet-a-manger
 dispenser_url = os.getenv("DISPENSER_URL")
