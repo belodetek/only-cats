@@ -1,7 +1,7 @@
 # training
 > needs a GPU
 
-## initial
+## base weights
 
 	python3 -m venv .venv
 	source .venv/bin/activate
@@ -33,10 +33,12 @@
 	python train.py
 
 ## tuning
-> scp-uuid in your own training data, generate labels, verify and fine tune the base model
+> scp-uuid in your own training images, manually generate labels, verify and fine tune the
+  base model
 
     cd tune
 
+    # manually generate labels (prey coordinates in image) and verify
     python verify.py
 
     python tune.py
