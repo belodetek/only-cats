@@ -129,5 +129,4 @@ dmypy.json
 .pyre/
 
 # belodetek/only-cats
-*.zip
 .DS_Store
