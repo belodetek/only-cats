@@ -4,6 +4,7 @@ version: '2.4'
 
 volumes:
   resin-data: {}
+  acme-data: {}
   signal-data: {}
 
 networks:
@@ -59,7 +60,7 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - resin-data:/letsencrypt
+      - acme-data:/letsencrypt
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048  # v7.15.6
