@@ -121,10 +121,6 @@ def main() -> None:
             half=False,
         )
     )
-
-    if OPENVINO_OUT_DIR.exists():
-        shutil.rmtree(OPENVINO_OUT_DIR)
-    shutil.copytree(exported_dir, OPENVINO_OUT_DIR)
     print(f"Exported OpenVINO model -> {OPENVINO_OUT_DIR.resolve()}")
 
 

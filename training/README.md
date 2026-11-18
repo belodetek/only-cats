@@ -1,6 +1,8 @@
 # training
 > needs a GPU
 
+## initial
+
 	python3 -m venv .venv
 	source .venv/bin/activate
 
@@ -29,3 +31,12 @@
 	cp prey_data.yaml prey_dataset/data.yaml
 
 	python train.py
+
+## tuning
+> scp-uuid in your own training data, generate labels, verify and fine tune the base model
+
+    cd tune
+
+    python verify.py
+
+    python tune.py
