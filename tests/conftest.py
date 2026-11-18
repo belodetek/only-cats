@@ -28,6 +28,7 @@ def _isolate_config_defaults(monkeypatch):
         },
     )
     monkeypatch.setattr(config, "webhook_secret", "test-secret")
+    monkeypatch.setattr(config, "allowed_alarm_types", {"ANIMAL", "TEST"})
     monkeypatch.setattr(config, "in_training", False)
     monkeypatch.setattr(config, "conf_threshold", 0.55)
     monkeypatch.setattr(config, "target_classes", {"prey"})

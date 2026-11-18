@@ -391,9 +391,10 @@ async def reolink_webhook(
     )
 
     webhook_event: dict[str, Any] = {"camera_url": camera_base_url}
+    alarm_type = ""
     try:
         payload = await request.json()
-        alarm_type = payload.get("alarm", {}).get("type", "Alarm Trigger")
+        alarm_type = str(payload.get("alarm", {}).get("type", "")).strip().upper()
         webhook_event["alarm_type"] = alarm_type
         webhook_event["webhook_payload"] = payload
         logger.info("Webhook event received: %s | Payload: %s", alarm_type, payload)
@@ -402,6 +403,18 @@ async def reolink_webhook(
         raw_text = raw_body.decode("utf-8", errors="replace")
         webhook_event["raw_body"] = raw_text
         logger.info("Webhook non-JSON body: %s", raw_text)
+
+    if alarm_type not in config.allowed_alarm_types:
+        logger.info(
+            "Ignoring webhook alarm type '%s' (allowed: %s).",
+            alarm_type or "UNKNOWN",
+            sorted(config.allowed_alarm_types),
+        )
+        return {
+            "status": "ignored",
+            "alarm_type": alarm_type or None,
+            "camera_url": camera_base_url,
+        }
 
     deps: AppState = request.app.state.deps
     background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
@@ -416,7 +429,7 @@ async def health(request: Request) -> dict:
     model = deps.model
 
     now = time.time()
-    is_serial_ok = bool(controller and controller.ser and controller.ser.is_open)
+    is_serial_ok = bool(controller and controller.is_connected)
     is_model_loaded = model is not None
     is_lock_active = bool(controller and now < controller.lock_until)
     remaining_lockout = max(0.0, controller.lock_until - now) if controller else 0.0

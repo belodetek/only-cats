@@ -114,7 +114,7 @@ async def test_fetch_and_evaluate_prey_detected_locks_persists_and_notifies(
             state,
             camera_receiver.config.camera_url,
             webhook_event={
-                "alarm_type": "MD",
+                "alarm_type": "ANIMAL",
                 "camera_url": camera_receiver.config.camera_url,
             },
         )
@@ -364,7 +364,7 @@ def test_webhook_resolves_default_camera_url_when_client_host_unknown():
         hook_resp = client.post(
             "/webhook/reolink",
             params={"secret": camera_receiver.config.webhook_secret},
-            json={"alarm": {"type": "MD"}},
+            json={"alarm": {"type": "ANIMAL"}},
         )
         assert hook_resp.status_code == 200
         assert hook_resp.json()["status"] == "queued"
@@ -374,3 +374,37 @@ def test_webhook_resolves_default_camera_url_when_client_host_unknown():
         args, _ = mock_eval.call_args
         assert args[1] == expected_url
         assert args[2]["camera_url"] == expected_url
+
+
+def test_webhook_ignores_non_whitelisted_alarm_types():
+    """Verify webhook ignores alarm types not in config.allowed_alarm_types."""
+    camera_receiver.app.state.deps = _make_state()
+    secret = camera_receiver.config.webhook_secret
+
+    with patch(
+        "camera_receiver.fetch_and_evaluate", new_callable=AsyncMock
+    ) as mock_eval:
+        client = TestClient(
+            camera_receiver.app,
+            client=("192.168.10.108", 50000),
+            raise_server_exceptions=True,
+        )
+
+        ignored_resp = client.post(
+            "/webhook/reolink",
+            params={"secret": secret},
+            json={"alarm": {"type": "PEOPLE"}},
+        )
+        assert ignored_resp.status_code == 200
+        assert ignored_resp.json()["status"] == "ignored"
+        assert ignored_resp.json()["alarm_type"] == "PEOPLE"
+        mock_eval.assert_not_awaited()
+
+        animal_resp = client.post(
+            "/webhook/reolink",
+            params={"secret": secret},
+            json={"alarm": {"type": "ANIMAL"}},
+        )
+        assert animal_resp.status_code == 200
+        assert animal_resp.json()["status"] == "queued"
+        mock_eval.assert_awaited_once()

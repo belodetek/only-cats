@@ -27,6 +27,11 @@ camera_networks = {
     if item.strip()
 }
 webhook_secret = os.getenv("WEBHOOK_SECRET")
+allowed_alarm_types: set[str] = {
+    item.strip().upper()
+    for item in os.getenv("ALLOWED_ALARM_TYPES", "ANIMAL,TEST").split(",")
+    if item.strip()
+}
 
 model_weights_path = os.getenv("MODEL_WEIGHTS_PATH", "best_openvino_model")
 data_root = os.getenv("DATA_DIR", "/data")
