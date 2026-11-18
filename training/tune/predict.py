@@ -12,7 +12,9 @@ IMAGES_DIR = Path("images")
 LABELS_DIR = Path("labels")
 IMGSZ = 1280
 CONF_THRESHOLD = 0.20
-OVERWRITE_EXISTING = False  # Set True to re-draft even if a non-empty .txt already exists
+OVERWRITE_EXISTING = (
+    False  # Set True to re-draft even if a non-empty .txt already exists
+)
 
 model = YOLO(str(WEIGHTS))
 LABELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,7 +28,9 @@ for img_path in images:
     lbl_path = LABELS_DIR / f"{img_path.stem}.txt"
 
     if not OVERWRITE_EXISTING and lbl_path.exists() and lbl_path.stat().st_size > 0:
-        print(f"Skipping {img_path.name}: non-empty label already exists ({lbl_path.name})")
+        print(
+            f"Skipping {img_path.name}: non-empty label already exists ({lbl_path.name})"
+        )
         continue
 
     results = model.predict(
