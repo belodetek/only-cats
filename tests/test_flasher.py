@@ -1,8 +1,10 @@
+# pylint: disable=import-error
 """Unit tests for flasher.py ESP32 descriptor parsing and auto-flash logic."""
 
 import struct
 from unittest.mock import patch
 
+import config
 import flasher
 
 
@@ -53,25 +55,35 @@ def test_parse_app_descriptor_valid_and_invalid():
     assert flasher.parse_app_descriptor(b"short") is None
 
 
-def test_auto_flash_skips_when_sha_matches(tmp_path):
+def test_auto_flash_skips_when_sha_matches(tmp_path, monkeypatch):
     """Verify esptool write_flash is skipped when on-chip SHA256 matches local binary."""
     bin_file = tmp_path / "fw.bin"
     fw_bytes = _build_fake_firmware(sha256=b"\xab" * 32)
     bin_file.write_bytes(fw_bytes)
     local_desc = flasher.parse_app_descriptor(fw_bytes[flasher.DESC_OFFSET :])
 
-    with patch("flasher.read_chip_descriptor", return_value=local_desc), patch(
-        "flasher.flash_firmware"
-    ) as mock_flash:
+    monkeypatch.setattr(config, "firmware_bin_path", str(bin_file))
+
+    with patch(
+        "flasher.read_chip_descriptor", return_value=local_desc
+    ) as mock_read, patch("flasher.flash_firmware") as mock_flash:
         flashed = flasher.auto_flash_esp32_if_updated(
-            port="/dev/ttyACM0", bin_path=str(bin_file)
+            port=config.serial_port,
+            bin_path=config.firmware_bin_path,
+            chip=config.esp_chip,
+            baud=config.esp_flash_baud,
         )
 
     assert flashed is False
+    mock_read.assert_called_once_with(
+        port=config.serial_port,
+        chip=config.esp_chip,
+        baud=config.esp_flash_baud,
+    )
     mock_flash.assert_not_called()
 
 
-def test_auto_flash_writes_on_sha_mismatch(tmp_path):
+def test_auto_flash_writes_on_sha_mismatch(tmp_path, monkeypatch):
     """Verify esptool write_flash runs when local binary SHA256 differs from chip."""
     bin_file = tmp_path / "fw.bin"
     local_fw = _build_fake_firmware(sha256=b"\xbb" * 32)
@@ -79,12 +91,22 @@ def test_auto_flash_writes_on_sha_mismatch(tmp_path):
     bin_file.write_bytes(local_fw)
     chip_desc = flasher.parse_app_descriptor(chip_fw[flasher.DESC_OFFSET :])
 
+    monkeypatch.setattr(config, "firmware_bin_path", str(bin_file))
+
     with patch("flasher.read_chip_descriptor", return_value=chip_desc), patch(
         "flasher.flash_firmware", return_value=True
     ) as mock_flash:
         flashed = flasher.auto_flash_esp32_if_updated(
-            port="/dev/ttyACM0", bin_path=str(bin_file)
+            port=config.serial_port,
+            bin_path=config.firmware_bin_path,
+            chip=config.esp_chip,
+            baud=config.esp_flash_baud,
         )
 
     assert flashed is True
-    mock_flash.assert_called_once()
+    mock_flash.assert_called_once_with(
+        config.serial_port,
+        config.esp_chip,
+        config.esp_flash_baud,
+        str(bin_file),
+    )

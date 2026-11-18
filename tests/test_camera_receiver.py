@@ -12,6 +12,32 @@ import camera_receiver
 from tests.conftest import make_yolo_result
 
 
+def _make_state(
+    sample_jpeg_bytes: bytes | None = None,
+    detections: list[tuple[int, float, list[float]]] | None = None,
+    names: dict[int, str] | None = None,
+) -> camera_receiver.AppState:
+    """Build an AppState with mocked controller, YOLO model, and HTTP client."""
+    mock_controller = MagicMock()
+    mock_controller.ser.is_open = True
+    mock_controller.lock_until = 0.0
+
+    mock_model = MagicMock()
+    mock_model.names = names or {0: "prey", 1: "cat"}
+    if detections is not None:
+        mock_model.predict.return_value = [make_yolo_result(detections)]
+
+    mock_http = AsyncMock()
+    if sample_jpeg_bytes is not None:
+        mock_http.get.return_value = MagicMock(
+            status_code=200, content=sample_jpeg_bytes
+        )
+
+    return camera_receiver.AppState(
+        controller=mock_controller, model=mock_model, http_client=mock_http
+    )
+
+
 def test_resolve_camera_url_ipv4():
     """Verify _resolve_camera_url formats standard IPv4 address in camera_networks."""
     assert (
@@ -21,9 +47,7 @@ def test_resolve_camera_url_ipv4():
 
 
 def test_resolve_camera_url_allowed_ipv6(monkeypatch):
-    """Verify _resolve_camera_url formats IPv6 in brackets
-    when explicitly allowed in camera_networks.
-    """
+    """Verify _resolve_camera_url formats IPv6 in brackets when allowed in camera_networks."""
     monkeypatch.setattr(
         camera_receiver.config,
         "camera_networks",
@@ -64,39 +88,23 @@ def test_resolve_camera_url_rejects_loopback_and_link_local():
     assert exc_linklocal.value.status_code == 403
 
 
-def test_resolve_camera_url_fallback_when_none_or_unknown(monkeypatch):
+def test_resolve_camera_url_fallback_when_none_or_unknown():
     """Verify _resolve_camera_url falls back to config.camera_url when client host is missing."""
-    monkeypatch.setattr(
-        camera_receiver.config, "camera_url", "https://default-camera:443"
-    )
-    assert camera_receiver._resolve_camera_url(None) == "https://default-camera:443"
-    assert (
-        camera_receiver._resolve_camera_url("unknown") == "https://default-camera:443"
-    )
-    assert camera_receiver._resolve_camera_url("") == "https://default-camera:443"
+    expected = camera_receiver.config.camera_url
+    assert camera_receiver._resolve_camera_url(None) == expected
+    assert camera_receiver._resolve_camera_url("unknown") == expected
+    assert camera_receiver._resolve_camera_url("") == expected
 
 
 @pytest.mark.asyncio
 async def test_fetch_and_evaluate_prey_detected_locks_persists_and_notifies(
-    tmp_data_dirs, sample_jpeg_bytes, monkeypatch
+    tmp_data_dirs, sample_jpeg_bytes
 ):
     """Positive prey detection must trigger lock, save .jpg/.txt, and send Signal alert."""
     images_dir, labels_dir = tmp_data_dirs
-    monkeypatch.setattr(camera_receiver.config, "target_classes", {"prey"})
-    monkeypatch.setattr(camera_receiver.config, "lockout_duration_sec", 300.0)
-
-    mock_model = MagicMock()
-    mock_model.names = {0: "prey", 1: "cat"}
-    mock_model.predict.return_value = [
-        make_yolo_result([(0, 0.91, [0.5, 0.4, 0.2, 0.3])])
-    ]
-
-    mock_http = AsyncMock()
-    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
-    mock_controller = MagicMock()
-
-    state = camera_receiver.AppState(
-        controller=mock_controller, model=mock_model, http_client=mock_http
+    state = _make_state(
+        sample_jpeg_bytes=sample_jpeg_bytes,
+        detections=[(0, 0.91, [0.5, 0.4, 0.2, 0.3])],
     )
 
     with patch(
@@ -104,11 +112,16 @@ async def test_fetch_and_evaluate_prey_detected_locks_persists_and_notifies(
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state,
-            "https://192.168.10.108",
-            webhook_event={"alarm_type": "MD", "camera_url": "https://192.168.10.108"},
+            camera_receiver.config.camera_url,
+            webhook_event={
+                "alarm_type": "MD",
+                "camera_url": camera_receiver.config.camera_url,
+            },
         )
 
-    mock_controller.trigger_lock.assert_called_once_with(300.0)
+    state.controller.trigger_lock.assert_called_once_with(
+        camera_receiver.config.lockout_duration_sec
+    )
     saved_jpgs = list(images_dir.glob("prey_*.jpg"))
     saved_txts = list(labels_dir.glob("prey_*.txt"))
     assert len(saved_jpgs) == 1
@@ -132,28 +145,18 @@ async def test_fetch_and_evaluate_test_event_with_zero_detections(
 ):
     """TEST webhook event with 0 detections must lock, write empty .txt, and notify."""
     _, labels_dir = tmp_data_dirs
-    mock_model = MagicMock()
-    mock_model.names = {0: "prey"}
-    mock_model.predict.return_value = [make_yolo_result([])]
-
-    mock_http = AsyncMock()
-    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
-    mock_controller = MagicMock()
-
-    state = camera_receiver.AppState(
-        controller=mock_controller, model=mock_model, http_client=mock_http
-    )
+    state = _make_state(sample_jpeg_bytes=sample_jpeg_bytes, detections=[])
 
     with patch(
         "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state,
-            "https://192.168.10.108",
+            camera_receiver.config.camera_url,
             webhook_event={"alarm_type": "TEST"},
         )
 
-    mock_controller.trigger_lock.assert_called_once()
+    state.controller.trigger_lock.assert_called_once()
     saved_txts = list(labels_dir.glob("prey_*.txt"))
     assert len(saved_txts) == 1
     assert saved_txts[0].read_text(encoding="utf-8") == ""
@@ -162,34 +165,23 @@ async def test_fetch_and_evaluate_test_event_with_zero_detections(
 
 @pytest.mark.asyncio
 async def test_fetch_and_evaluate_non_prey_does_not_lock(
-    tmp_data_dirs, sample_jpeg_bytes, monkeypatch
+    tmp_data_dirs, sample_jpeg_bytes
 ):
-    """Detections outside target_classes (e.g., 'cat') must not engage lock
-    or persist when not training."""
+    """Detections outside target_classes (e.g., 'cat') must not engage lock or persist."""
     images_dir, _ = tmp_data_dirs
-    monkeypatch.setattr(camera_receiver.config, "target_classes", {"prey"})
-    monkeypatch.setattr(camera_receiver.config, "in_training", False)
-
-    mock_model = MagicMock()
-    mock_model.names = {0: "prey", 1: "cat"}
-    mock_model.predict.return_value = [
-        make_yolo_result([(1, 0.88, [0.5, 0.5, 0.4, 0.4])])
-    ]
-
-    mock_http = AsyncMock()
-    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
-    mock_controller = MagicMock()
-
-    state = camera_receiver.AppState(
-        controller=mock_controller, model=mock_model, http_client=mock_http
+    state = _make_state(
+        sample_jpeg_bytes=sample_jpeg_bytes,
+        detections=[(1, 0.88, [0.5, 0.5, 0.4, 0.4])],
     )
 
     with patch(
         "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
-        await camera_receiver.fetch_and_evaluate(state, "https://192.168.10.108")
+        await camera_receiver.fetch_and_evaluate(
+            state, camera_receiver.config.camera_url
+        )
 
-    mock_controller.trigger_lock.assert_not_called()
+    state.controller.trigger_lock.assert_not_called()
     assert not list(images_dir.glob("*.jpg"))
     mock_notify.assert_not_awaited()
 
@@ -198,29 +190,19 @@ async def test_fetch_and_evaluate_non_prey_does_not_lock(
 async def test_fetch_and_evaluate_in_training_persists_zero_detection_pair(
     tmp_data_dirs, sample_jpeg_bytes, monkeypatch
 ):
-    """When in_training=True, 0 detections must persist train_*.jpg
-    and empty .txt without locking."""
+    """When in_training=True, 0 detections must persist train_*.jpg and empty .txt."""
     images_dir, labels_dir = tmp_data_dirs
     monkeypatch.setattr(camera_receiver.config, "in_training", True)
-
-    mock_model = MagicMock()
-    mock_model.names = {0: "prey"}
-    mock_model.predict.return_value = [make_yolo_result([])]
-
-    mock_http = AsyncMock()
-    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
-    mock_controller = MagicMock()
-
-    state = camera_receiver.AppState(
-        controller=mock_controller, model=mock_model, http_client=mock_http
-    )
+    state = _make_state(sample_jpeg_bytes=sample_jpeg_bytes, detections=[])
 
     with patch(
         "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
-        await camera_receiver.fetch_and_evaluate(state, "https://192.168.10.108")
+        await camera_receiver.fetch_and_evaluate(
+            state, camera_receiver.config.camera_url
+        )
 
-    mock_controller.trigger_lock.assert_not_called()
+    state.controller.trigger_lock.assert_not_called()
     mock_notify.assert_not_awaited()
 
     saved_jpgs = list(images_dir.glob("train_*.jpg"))
@@ -234,31 +216,22 @@ async def test_fetch_and_evaluate_in_training_persists_zero_detection_pair(
 async def test_fetch_and_evaluate_in_training_persists_non_prey_detections(
     tmp_data_dirs, sample_jpeg_bytes, monkeypatch
 ):
-    """When in_training=True, non-prey detections must persist train_*.jpg and bounding boxes."""
+    """When in_training=True, non-prey detections must persist train_*.jpg and boxes."""
     images_dir, labels_dir = tmp_data_dirs
-    monkeypatch.setattr(camera_receiver.config, "target_classes", {"prey"})
     monkeypatch.setattr(camera_receiver.config, "in_training", True)
-
-    mock_model = MagicMock()
-    mock_model.names = {0: "prey", 1: "cat"}
-    mock_model.predict.return_value = [
-        make_yolo_result([(1, 0.88, [0.5, 0.5, 0.4, 0.4])])
-    ]
-
-    mock_http = AsyncMock()
-    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
-    mock_controller = MagicMock()
-
-    state = camera_receiver.AppState(
-        controller=mock_controller, model=mock_model, http_client=mock_http
+    state = _make_state(
+        sample_jpeg_bytes=sample_jpeg_bytes,
+        detections=[(1, 0.88, [0.5, 0.5, 0.4, 0.4])],
     )
 
     with patch(
         "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
-        await camera_receiver.fetch_and_evaluate(state, "https://192.168.10.108")
+        await camera_receiver.fetch_and_evaluate(
+            state, camera_receiver.config.camera_url
+        )
 
-    mock_controller.trigger_lock.assert_not_called()
+    state.controller.trigger_lock.assert_not_called()
     mock_notify.assert_not_awaited()
 
     saved_jpgs = list(images_dir.glob("train_*.jpg"))
@@ -270,16 +243,10 @@ async def test_fetch_and_evaluate_in_training_persists_non_prey_detections(
     )
 
 
-def test_webhook_and_health_endpoints(monkeypatch):
+def test_webhook_and_health_endpoints():
     """Verify FastAPI /webhook/reolink and /health routes with mocked AppState."""
-    monkeypatch.setattr(camera_receiver.config, "webhook_secret", "test-secret")
-    mock_controller = MagicMock()
-    mock_controller.ser.is_open = True
-    mock_controller.lock_until = 0.0
-
-    camera_receiver.app.state.deps = camera_receiver.AppState(
-        controller=mock_controller, model=MagicMock(), http_client=AsyncMock()
-    )
+    camera_receiver.app.state.deps = _make_state()
+    secret = camera_receiver.config.webhook_secret
 
     with patch(
         "camera_receiver.fetch_and_evaluate", new_callable=AsyncMock
@@ -296,7 +263,7 @@ def test_webhook_and_health_endpoints(monkeypatch):
 
         hook_resp = client.post(
             "/webhook/reolink",
-            params={"secret": "test-secret"},
+            params={"secret": secret},
             json={"alarm": {"type": "TEST"}},
         )
         assert hook_resp.status_code == 200
@@ -310,16 +277,9 @@ def test_webhook_and_health_endpoints(monkeypatch):
         assert args[2]["alarm_type"] == "TEST"
 
 
-def test_webhook_accepts_x_webhook_secret_header(monkeypatch):
+def test_webhook_accepts_x_webhook_secret_header():
     """Verify webhook endpoint accepts shared secret via X-Webhook-Secret header."""
-    monkeypatch.setattr(camera_receiver.config, "webhook_secret", "test-secret")
-    mock_controller = MagicMock()
-    mock_controller.ser.is_open = True
-    mock_controller.lock_until = 0.0
-
-    camera_receiver.app.state.deps = camera_receiver.AppState(
-        controller=mock_controller, model=MagicMock(), http_client=AsyncMock()
-    )
+    camera_receiver.app.state.deps = _make_state()
 
     with patch(
         "camera_receiver.fetch_and_evaluate", new_callable=AsyncMock
@@ -332,7 +292,7 @@ def test_webhook_accepts_x_webhook_secret_header(monkeypatch):
 
         hook_resp = client.post(
             "/webhook/reolink",
-            headers={"X-Webhook-Secret": "test-secret"},
+            headers={"X-Webhook-Secret": camera_receiver.config.webhook_secret},
             json={"alarm": {"type": "TEST"}},
         )
         assert hook_resp.status_code == 200
@@ -340,24 +300,19 @@ def test_webhook_accepts_x_webhook_secret_header(monkeypatch):
         mock_eval.assert_awaited_once()
 
 
-def test_webhook_rejects_missing_or_invalid_secret(monkeypatch):
+def test_webhook_rejects_missing_or_invalid_secret():
     """Verify webhook endpoint returns 401 when secret is missing or invalid."""
-    monkeypatch.setattr(camera_receiver.config, "webhook_secret", "test-secret")
-    camera_receiver.app.state.deps = camera_receiver.AppState(
-        controller=MagicMock(), model=MagicMock(), http_client=AsyncMock()
-    )
+    camera_receiver.app.state.deps = _make_state()
     client = TestClient(
         camera_receiver.app,
         client=("192.168.10.108", 50000),
         raise_server_exceptions=False,
     )
 
-    # Missing secret
     resp_missing = client.post("/webhook/reolink", json={"alarm": {"type": "TEST"}})
     assert resp_missing.status_code == 401
     assert resp_missing.json()["detail"] == "Invalid webhook secret"
 
-    # Invalid query param secret
     resp_bad = client.post(
         "/webhook/reolink",
         params={"secret": "wrong-secret"},
@@ -366,7 +321,6 @@ def test_webhook_rejects_missing_or_invalid_secret(monkeypatch):
     assert resp_bad.status_code == 401
     assert resp_bad.json()["detail"] == "Invalid webhook secret"
 
-    # Invalid header secret
     resp_bad_hdr = client.post(
         "/webhook/reolink",
         headers={"X-Webhook-Secret": "wrong-secret"},
@@ -376,12 +330,9 @@ def test_webhook_rejects_missing_or_invalid_secret(monkeypatch):
     assert resp_bad_hdr.json()["detail"] == "Invalid webhook secret"
 
 
-def test_webhook_rejects_untrusted_client_ip(monkeypatch):
+def test_webhook_rejects_untrusted_client_ip():
     """Verify webhook endpoint returns 403 when client IP is not in camera_networks."""
-    monkeypatch.setattr(camera_receiver.config, "webhook_secret", "test-secret")
-    camera_receiver.app.state.deps = camera_receiver.AppState(
-        controller=MagicMock(), model=MagicMock(), http_client=AsyncMock()
-    )
+    camera_receiver.app.state.deps = _make_state()
     client = TestClient(
         camera_receiver.app,
         client=("2001:db8::1", 50000),
@@ -389,25 +340,17 @@ def test_webhook_rejects_untrusted_client_ip(monkeypatch):
     )
     resp = client.post(
         "/webhook/reolink",
-        params={"secret": "test-secret"},
+        params={"secret": camera_receiver.config.webhook_secret},
         json={"alarm": {"type": "TEST"}},
     )
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Client IP not in trusted camera subnet"
 
 
-def test_webhook_resolves_default_camera_url_when_client_host_unknown(monkeypatch):
+def test_webhook_resolves_default_camera_url_when_client_host_unknown():
     """Verify webhook endpoint falls back to config.camera_url when client host is unknown."""
-    monkeypatch.setattr(camera_receiver.config, "webhook_secret", "test-secret")
-    monkeypatch.setattr(camera_receiver.config, "camera_url", "https://10.42.84.168")
-
-    mock_controller = MagicMock()
-    mock_controller.ser.is_open = True
-    mock_controller.lock_until = 0.0
-
-    camera_receiver.app.state.deps = camera_receiver.AppState(
-        controller=mock_controller, model=MagicMock(), http_client=AsyncMock()
-    )
+    camera_receiver.app.state.deps = _make_state()
+    expected_url = camera_receiver.config.camera_url
 
     with patch(
         "camera_receiver.fetch_and_evaluate", new_callable=AsyncMock
@@ -420,14 +363,14 @@ def test_webhook_resolves_default_camera_url_when_client_host_unknown(monkeypatc
 
         hook_resp = client.post(
             "/webhook/reolink",
-            params={"secret": "test-secret"},
+            params={"secret": camera_receiver.config.webhook_secret},
             json={"alarm": {"type": "MD"}},
         )
         assert hook_resp.status_code == 200
         assert hook_resp.json()["status"] == "queued"
-        assert hook_resp.json()["camera_url"] == "https://10.42.84.168"
+        assert hook_resp.json()["camera_url"] == expected_url
 
         mock_eval.assert_awaited_once()
         args, _ = mock_eval.call_args
-        assert args[1] == "https://10.42.84.168"
-        assert args[2]["camera_url"] == "https://10.42.84.168"
+        assert args[1] == expected_url
+        assert args[2]["camera_url"] == expected_url

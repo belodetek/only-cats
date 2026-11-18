@@ -1,9 +1,20 @@
+# pylint: disable=import-error
 """Unit tests for config.py environment parsing."""
 
 import importlib
 import ipaddress
 
+import pytest
+
 import config
+
+
+@pytest.fixture(autouse=True)
+def _restore_config_module_after_reload(monkeypatch):
+    """Reload config cleanly after each test so monkeypatched env vars do not persist."""
+    yield
+    monkeypatch.undo()
+    importlib.reload(config)
 
 
 def test_config_parses_target_classes_and_recipients(monkeypatch):
@@ -27,9 +38,11 @@ def test_config_parses_camera_networks(monkeypatch):
     }
 
 
-def test_config_parses_webhook_secret(monkeypatch):
-    """Verify WEBHOOK_SECRET is loaded from environment."""
+def test_config_parses_webhook_secret_and_in_training(monkeypatch):
+    """Verify WEBHOOK_SECRET and boolean IN_TRAINING flags load from environment."""
     monkeypatch.setenv("WEBHOOK_SECRET", "custom-secret")
+    monkeypatch.setenv("IN_TRAINING", "true")
     importlib.reload(config)
 
     assert config.webhook_secret == "custom-secret"
+    assert config.in_training is True

@@ -1,6 +1,7 @@
 # pylint: disable=import-error
 """Shared pytest fixtures for iwatch-ulock unit tests."""
 
+import ipaddress
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -9,6 +10,40 @@ import numpy as np
 import pytest
 
 import config
+
+
+@pytest.fixture(autouse=True)
+def _isolate_config_defaults(monkeypatch):
+    """Ensure every test starts with predictable config values regardless of host/compose env."""
+    monkeypatch.setattr(config, "app_name", "iwatch-ulock-test")
+    monkeypatch.setattr(config, "camera_url", "https://192.168.10.108")
+    monkeypatch.setattr(config, "camera_user", "test-user")
+    monkeypatch.setattr(config, "camera_password", "test-password")
+    monkeypatch.setattr(
+        config,
+        "camera_networks",
+        {
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("192.168.10.0/24"),
+        },
+    )
+    monkeypatch.setattr(config, "webhook_secret", "test-secret")
+    monkeypatch.setattr(config, "in_training", False)
+    monkeypatch.setattr(config, "conf_threshold", 0.55)
+    monkeypatch.setattr(config, "target_classes", {"prey"})
+    monkeypatch.setattr(config, "lockout_duration_sec", 5.0)
+    monkeypatch.setattr(config, "command_interval_sec", 0.05)
+    monkeypatch.setattr(config, "dispenser_url", "http://ifeed:8000/dispense")
+    monkeypatch.setattr(config, "dispenser_user", "admin")
+    monkeypatch.setattr(config, "dispenser_password", "secret")
+    monkeypatch.setattr(config, "signal_api_url", "http://signal-api:8080")
+    monkeypatch.setattr(config, "signal_sender", "+12505550100")
+    monkeypatch.setattr(config, "signal_recipients", ["group.testGroupId123="])
+    monkeypatch.setattr(config, "esp_chip", "esp32c6")
+    monkeypatch.setattr(config, "esp_flash_baud", 460800)
+    monkeypatch.setattr(config, "firmware_bin_path", "flash/firmware_sketch.ino.bin")
+    monkeypatch.setattr(config, "serial_port", "/dev/null")
+    monkeypatch.setattr(config, "baud_rate", 115200)
 
 
 @pytest.fixture

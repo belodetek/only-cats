@@ -1,5 +1,7 @@
+# pylint: disable=import-error
 """Unit tests for esp32.py serial lock controller."""
 
+import threading
 import time
 from unittest.mock import MagicMock, patch
 
@@ -10,21 +12,35 @@ def test_trigger_lock_sends_keepalive_and_fires_expiration_once(monkeypatch):
     """Verify 'L' is sent during lockout and on_lockout_expired fires once upon unlock."""
     monkeypatch.setattr(esp32.config, "command_interval_sec", 0.01)
 
+    two_writes_seen = threading.Event()
+    expired_event = threading.Event()
+    expired_events = []
+
     mock_serial_instance = MagicMock()
     mock_serial_instance.is_open = True
-    expired_events = []
+
+    def _on_write(_data):
+        if mock_serial_instance.write.call_count >= 2:
+            two_writes_seen.set()
+
+    mock_serial_instance.write.side_effect = _on_write
+
+    def _on_expired():
+        expired_events.append(time.time())
+        expired_event.set()
 
     with patch("esp32.serial.Serial", return_value=mock_serial_instance):
         ctrl = esp32.ESP32SerialController(
             esp32.config.serial_port, esp32.config.baud_rate
         )
-        ctrl.on_lockout_expired = lambda: expired_events.append(time.time())
+        ctrl.on_lockout_expired = _on_expired
         with patch("esp32.time.sleep"):
             ctrl.connect()
         ctrl.start_worker()
 
-        ctrl.trigger_lock(duration=0.08, dispense_on_expire=True)
-        time.sleep(0.18)
+        ctrl.trigger_lock(duration=0.15, dispense_on_expire=True)
+        assert two_writes_seen.wait(timeout=1.0), "Expected at least 2 keepalive writes"
+        assert expired_event.wait(timeout=1.0), "Expected lockout expiration callback"
         ctrl.close()
 
     assert mock_serial_instance.write.call_count >= 2
