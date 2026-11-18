@@ -33,7 +33,7 @@ services:
       - |
         exec traefik \
           --accesslog.fields.headers.defaultmode=keep \
-          --accesslog.format=common \
+          --accesslog.format=json \
           --accesslog=true \
           --api.dashboard=true \
           --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15 \
