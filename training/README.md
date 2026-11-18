@@ -33,7 +33,7 @@
 	python train.py
 
 ## tuning
-> [scp-uuid] in your own training images, manually generate labels, verify and fine tune the
+> [scp-uuid] in your own training images, generate draft labels, verify and fine tune the
   base model
 
     cd tune
@@ -44,7 +44,10 @@
     # beware overwriting manually generated labels
     scp-uuid -r {{uuid}}.balena:/mnt/data/docker/volumes/{{volume-id}}_resin-data/_data/labels tune/
 
-    # manually generate labels (prey coordinates in image) and verify
+    # generate draft labels (prey coordinates in image)
+    python predict.py
+
+    # .. and verify
     python verify.py
 
     # fine tune the base weights

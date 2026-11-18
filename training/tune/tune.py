@@ -5,7 +5,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
+# pylint: disable=import-error
 from ultralytics import YOLO
+
+# pylint: enable=import-error
 
 BASE_WEIGHTS = Path("../runs/detect/prey_runs/yolo11_prey/weights/best.pt")
 OPENVINO_OUT_DIR = Path(
@@ -37,7 +40,8 @@ def validate_dataset(dataset_dir: Path, yaml_path: Path) -> None:
     for img_path in images:
         lbl_path = labels_dir / f"{img_path.stem}.txt"
         if not lbl_path.exists():
-            # Create empty 0-byte label file so Ultralytics explicitly treats it as a background sample
+            # Create empty 0-byte label file so Ultralytics explicitly treats it
+            # as a background sample
             lbl_path.write_text("", encoding="utf-8")
             negatives += 1
         elif lbl_path.read_text(encoding="utf-8").strip():
@@ -77,6 +81,7 @@ def backup_existing_weights(weights_path: Path) -> None:
 
 
 def main() -> None:
+    """main"""
     if not BASE_WEIGHTS.exists():
         raise FileNotFoundError(f"Base weights not found at {BASE_WEIGHTS}")
 
@@ -121,7 +126,7 @@ def main() -> None:
             half=False,
         )
     )
-    print(f"Exported OpenVINO model -> {OPENVINO_OUT_DIR.resolve()}")
+    print(f"Exported OpenVINO model -> {exported_dir.resolve()}")
 
 
 if __name__ == "__main__":
