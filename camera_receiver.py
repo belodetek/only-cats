@@ -154,11 +154,15 @@ async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:
 
 
 def _persist_training_pair(
-    img: np.ndarray, result: Optional[Results]
+    img: np.ndarray,
+    result: Optional[Results],
+    prefix: str = "prey",
 ) -> Optional[tuple[str, str]]:
     """Persist raw image and normalized YOLO bounding boxes, returning saved paths."""
     try:
-        base_name = f"prey_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        base_name = (
+            f"{prefix}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        )
         img_path = os.path.join(config.images_dir, f"{base_name}.jpg")
         label_path = os.path.join(config.labels_dir, f"{base_name}.txt")
 
@@ -171,7 +175,7 @@ def _persist_training_pair(
             return None
 
         label_lines: list[str] = []
-        if result is not None and result.boxes is not None:
+        if result is not None and result.boxes is not None and len(result.boxes) > 0:
             # xywhn provides normalized (x_center, y_center, width, height) in range [0.0, 1.0]
             boxes_xywhn = result.boxes.xywhn.cpu().numpy()
             classes = result.boxes.cls.cpu().numpy().astype(int)
@@ -293,50 +297,25 @@ async def fetch_and_evaluate(
             webhook_event and str(webhook_event.get("alarm_type", "")).upper() == "TEST"
         )
         top_result = results[0] if results else None
+        has_boxes = top_result is not None and len(top_result.boxes) > 0
 
-        if (top_result is not None and len(top_result.boxes) > 0) or is_test:
-            detected_classes = (
-                [state.model.names[int(cls_id)] for cls_id in top_result.boxes.cls]
-                if top_result is not None
-                else []
-            )
-            confidences = (
-                [float(conf) for conf in top_result.boxes.conf]
-                if top_result is not None
-                else []
-            )
-            detections = list(zip(detected_classes, confidences))
+        detected_classes = (
+            [state.model.names[int(cls_id)] for cls_id in top_result.boxes.cls]
+            if has_boxes
+            else []
+        )
+        confidences = (
+            [float(conf) for conf in top_result.boxes.conf] if has_boxes else []
+        )
+        detections = list(zip(detected_classes, confidences))
 
+        if detections:
             logger.info(
                 "Detections: %s (Fetch: %.1fms, Infer: %.1fms)",
                 detections,
                 fetch_ms,
                 infer_ms,
             )
-
-            if is_test or any(
-                name in config.target_classes for name in detected_classes
-            ):
-                logger.warning(
-                    ">>> %s! Activating lock for %ds...",
-                    "TEST EVENT" if is_test else "PREY DETECTED",
-                    int(config.lockout_duration_sec),
-                )
-                state.controller.trigger_lock(config.lockout_duration_sec)
-                event_data: dict[str, Any] = {
-                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                    "lockout_duration_sec": int(config.lockout_duration_sec),
-                    "fetch_ms": round(fetch_ms, 1),
-                    "infer_ms": round(infer_ms, 1),
-                    "detections": [
-                        {"class": cls_name, "confidence": round(conf, 4)}
-                        for cls_name, conf in detections
-                    ],
-                    **(webhook_event or {}),
-                }
-                await _persist_and_notify(img, top_result, event_data)
-            else:
-                logger.info("Objects detected, but no prey criteria met.")
         else:
             logger.info(
                 "No targets above %.0f%% confidence (Fetch: %.1fms, Infer: %.1fms).",
@@ -344,6 +323,29 @@ async def fetch_and_evaluate(
                 fetch_ms,
                 infer_ms,
             )
+
+        if is_test or any(name in config.target_classes for name in detected_classes):
+            logger.warning(
+                ">>> %s! Activating lock for %ds...",
+                "TEST EVENT" if is_test else "PREY DETECTED",
+                int(config.lockout_duration_sec),
+            )
+            state.controller.trigger_lock(config.lockout_duration_sec)
+            event_data: dict[str, Any] = {
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "lockout_duration_sec": int(config.lockout_duration_sec),
+                "fetch_ms": round(fetch_ms, 1),
+                "infer_ms": round(infer_ms, 1),
+                "detections": [
+                    {"class": cls_name, "confidence": round(conf, 4)}
+                    for cls_name, conf in detections
+                ],
+                **(webhook_event or {}),
+            }
+            await _persist_and_notify(img, top_result, event_data)
+        elif config.in_training:
+            logger.info("IN_TRAINING enabled: persisting training pair.")
+            await asyncio.to_thread(_persist_training_pair, img, top_result, "train")
 
     except httpx.RequestError as exc:
         logger.error("Network error communicating with Reolink camera: %s", exc)

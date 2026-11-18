@@ -164,9 +164,11 @@ async def test_fetch_and_evaluate_test_event_with_zero_detections(
 async def test_fetch_and_evaluate_non_prey_does_not_lock(
     tmp_data_dirs, sample_jpeg_bytes, monkeypatch
 ):
-    """Detections outside target_classes (e.g., 'cat') must not engage lock."""
+    """Detections outside target_classes (e.g., 'cat') must not engage lock
+    or persist when not training."""
     images_dir, _ = tmp_data_dirs
     monkeypatch.setattr(camera_receiver.config, "target_classes", {"prey"})
+    monkeypatch.setattr(camera_receiver.config, "in_training", False)
 
     mock_model = MagicMock()
     mock_model.names = {0: "prey", 1: "cat"}
@@ -190,6 +192,82 @@ async def test_fetch_and_evaluate_non_prey_does_not_lock(
     mock_controller.trigger_lock.assert_not_called()
     assert not list(images_dir.glob("*.jpg"))
     mock_notify.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_evaluate_in_training_persists_zero_detection_pair(
+    tmp_data_dirs, sample_jpeg_bytes, monkeypatch
+):
+    """When in_training=True, 0 detections must persist train_*.jpg
+    and empty .txt without locking."""
+    images_dir, labels_dir = tmp_data_dirs
+    monkeypatch.setattr(camera_receiver.config, "in_training", True)
+
+    mock_model = MagicMock()
+    mock_model.names = {0: "prey"}
+    mock_model.predict.return_value = [make_yolo_result([])]
+
+    mock_http = AsyncMock()
+    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
+    mock_controller = MagicMock()
+
+    state = camera_receiver.AppState(
+        controller=mock_controller, model=mock_model, http_client=mock_http
+    )
+
+    with patch(
+        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+    ) as mock_notify:
+        await camera_receiver.fetch_and_evaluate(state, "https://192.168.10.108")
+
+    mock_controller.trigger_lock.assert_not_called()
+    mock_notify.assert_not_awaited()
+
+    saved_jpgs = list(images_dir.glob("train_*.jpg"))
+    saved_txts = list(labels_dir.glob("train_*.txt"))
+    assert len(saved_jpgs) == 1
+    assert len(saved_txts) == 1
+    assert saved_txts[0].read_text(encoding="utf-8") == ""
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_evaluate_in_training_persists_non_prey_detections(
+    tmp_data_dirs, sample_jpeg_bytes, monkeypatch
+):
+    """When in_training=True, non-prey detections must persist train_*.jpg and bounding boxes."""
+    images_dir, labels_dir = tmp_data_dirs
+    monkeypatch.setattr(camera_receiver.config, "target_classes", {"prey"})
+    monkeypatch.setattr(camera_receiver.config, "in_training", True)
+
+    mock_model = MagicMock()
+    mock_model.names = {0: "prey", 1: "cat"}
+    mock_model.predict.return_value = [
+        make_yolo_result([(1, 0.88, [0.5, 0.5, 0.4, 0.4])])
+    ]
+
+    mock_http = AsyncMock()
+    mock_http.get.return_value = MagicMock(status_code=200, content=sample_jpeg_bytes)
+    mock_controller = MagicMock()
+
+    state = camera_receiver.AppState(
+        controller=mock_controller, model=mock_model, http_client=mock_http
+    )
+
+    with patch(
+        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+    ) as mock_notify:
+        await camera_receiver.fetch_and_evaluate(state, "https://192.168.10.108")
+
+    mock_controller.trigger_lock.assert_not_called()
+    mock_notify.assert_not_awaited()
+
+    saved_jpgs = list(images_dir.glob("train_*.jpg"))
+    saved_txts = list(labels_dir.glob("train_*.txt"))
+    assert len(saved_jpgs) == 1
+    assert len(saved_txts) == 1
+    assert saved_txts[0].read_text(encoding="utf-8").strip() == (
+        "1 0.500000 0.500000 0.400000 0.400000"
+    )
 
 
 def test_webhook_and_health_endpoints(monkeypatch):

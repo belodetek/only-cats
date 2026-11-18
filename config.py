@@ -33,6 +33,14 @@ data_root = os.getenv("DATA_DIR", "/data")
 images_dir = os.path.join(data_root, os.getenv("IMAGES_DIR", "images"))
 labels_dir = os.path.join(data_root, os.getenv("LABELS_DIR", "labels"))
 
+# set to capture training data
+in_training = os.getenv("IN_TRAINING", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
 conf_threshold = float(os.getenv("CONF_THRESHOLD", "0.55"))
 target_classes = os.getenv("TARGET_CLASSES", "prey")
 target_classes = {item.strip() for item in target_classes.split(",") if item.strip()}
