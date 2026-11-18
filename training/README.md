@@ -33,12 +33,19 @@
 	python train.py
 
 ## tuning
-> scp-uuid in your own training images, manually generate labels, verify and fine tune the
+> [scp-uuid] in your own training images, manually generate labels, verify and fine tune the
   base model
 
     cd tune
 
+    # scp in your own training images from live runtime
+    scp-uuid -r {{uuid}}.balena:/mnt/data/docker/volumes/{{volume-id}}_resin-data/_data/ tune
+
     # manually generate labels (prey coordinates in image) and verify
     python verify.py
 
+    # fine tune the base weights
     python tune.py
+
+
+[scp-uuid]: https://github.com/pdcastro/ssh-uuid#file-transfer-with-scp
