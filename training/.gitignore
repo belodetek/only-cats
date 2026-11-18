@@ -1,4 +1,3 @@
 *.zip
 prey_dataset/
-runs/detect/prey_runs/yolo11_prey/weights/last.pt
 yolo11n.pt
