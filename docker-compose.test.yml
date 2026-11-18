@@ -4,12 +4,14 @@ services:
   sut:
     build: .
     command: >
-      sh -c "pip install --no-cache-dir pytest pytest-asyncio httpx2
+      sh -c "pip install --upgrade pip
+             pip install --no-cache-dir pytest pytest-asyncio httpx2
              pytest -v --tb=short tests/"
     environment:
       LOG_LEVEL: DEBUG
       DATA_DIR: /tmp/test-data
       MODEL_WEIGHTS_PATH: /tmp/test-data/nonexistent_weights
       SERIAL_PORT: /dev/null
+      PIP_ROOT_USER_ACTION: ignore
     volumes:
       - .:/app
