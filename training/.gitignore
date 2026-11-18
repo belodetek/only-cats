@@ -1,3 +1,4 @@
 yolo11n.pt
 runs/detect/prey_runs/yolo11_prey/weights/last.pt
 prey_dataset/
+_data/
