@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import camera_receiver
+import utils
 from tests.conftest import (
     assert_admin_lock_unlock_flow,
     bind_admin_override_mock,
@@ -44,10 +45,7 @@ def _make_state(
 
 def test_resolve_camera_url_ipv4():
     """Verify _resolve_camera_url formats standard IPv4 address in camera_networks."""
-    assert (
-        camera_receiver._resolve_camera_url("192.168.10.108")
-        == "https://192.168.10.108"
-    )
+    assert utils.resolve_camera_url("192.168.10.108") == "https://192.168.10.108"
 
 
 def test_resolve_camera_url_allowed_ipv6(monkeypatch):
@@ -57,18 +55,18 @@ def test_resolve_camera_url_allowed_ipv6(monkeypatch):
         "camera_networks",
         {ipaddress.ip_network("fd00::/8")},
     )
-    assert camera_receiver._resolve_camera_url("fd00::1") == "https://[fd00::1]"
+    assert utils.resolve_camera_url("fd00::1") == "https://[fd00::1]"
 
 
 def test_resolve_camera_url_rejects_untrusted_and_public_ips():
     """Verify _resolve_camera_url rejects public IPs not in camera_networks with 403."""
     with pytest.raises(HTTPException) as exc_v6:
-        camera_receiver._resolve_camera_url("2001:db8::1")
+        utils.resolve_camera_url("2001:db8::1")
     assert exc_v6.value.status_code == 403
     assert exc_v6.value.detail == "Client IP not in trusted camera subnet"
 
     with pytest.raises(HTTPException) as exc_v4:
-        camera_receiver._resolve_camera_url("8.8.8.8")
+        utils.resolve_camera_url("8.8.8.8")
     assert exc_v4.value.status_code == 403
     assert exc_v4.value.detail == "Client IP not in trusted camera subnet"
 
@@ -76,7 +74,7 @@ def test_resolve_camera_url_rejects_untrusted_and_public_ips():
 def test_resolve_camera_url_rejects_invalid_ip():
     """Verify _resolve_camera_url raises 400 when client host is not a valid IP."""
     with pytest.raises(HTTPException) as exc_info:
-        camera_receiver._resolve_camera_url("not-an-ip")
+        utils.resolve_camera_url("not-an-ip")
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "Invalid client IP"
 
@@ -84,20 +82,20 @@ def test_resolve_camera_url_rejects_invalid_ip():
 def test_resolve_camera_url_rejects_loopback_and_link_local():
     """Verify _resolve_camera_url raises 403 on loopback or link-local addresses."""
     with pytest.raises(HTTPException) as exc_loopback:
-        camera_receiver._resolve_camera_url("127.0.0.1")
+        utils.resolve_camera_url("127.0.0.1")
     assert exc_loopback.value.status_code == 403
 
     with pytest.raises(HTTPException) as exc_linklocal:
-        camera_receiver._resolve_camera_url("169.254.1.1")
+        utils.resolve_camera_url("169.254.1.1")
     assert exc_linklocal.value.status_code == 403
 
 
 def test_resolve_camera_url_fallback_when_none_or_unknown():
     """Verify _resolve_camera_url falls back to config.camera_url when client host is missing."""
     expected = camera_receiver.config.camera_url
-    assert camera_receiver._resolve_camera_url(None) == expected
-    assert camera_receiver._resolve_camera_url("unknown") == expected
-    assert camera_receiver._resolve_camera_url("") == expected
+    assert utils.resolve_camera_url(None) == expected
+    assert utils.resolve_camera_url("unknown") == expected
+    assert utils.resolve_camera_url("") == expected
 
 
 @pytest.mark.asyncio
@@ -112,7 +110,7 @@ async def test_fetch_and_evaluate_prey_detected_locks_persists_and_notifies(
     )
 
     with patch(
-        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+        "notifications.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state,
@@ -152,7 +150,7 @@ async def test_fetch_and_evaluate_test_event_with_zero_detections(
     state = _make_state(sample_jpeg_bytes=sample_jpeg_bytes, detections=[])
 
     with patch(
-        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+        "notifications.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state,
@@ -179,7 +177,7 @@ async def test_fetch_and_evaluate_non_prey_does_not_lock(
     )
 
     with patch(
-        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+        "notifications.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state, camera_receiver.config.camera_url
@@ -200,7 +198,7 @@ async def test_fetch_and_evaluate_in_training_persists_zero_detection_pair(
     state = _make_state(sample_jpeg_bytes=sample_jpeg_bytes, detections=[])
 
     with patch(
-        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+        "notifications.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state, camera_receiver.config.camera_url
@@ -229,7 +227,7 @@ async def test_fetch_and_evaluate_in_training_persists_non_prey_detections(
     )
 
     with patch(
-        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+        "notifications.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state, camera_receiver.config.camera_url
@@ -450,7 +448,7 @@ async def test_fetch_and_evaluate_prey_during_admin_override_persists_and_notifi
     state.controller.trigger_lock.return_value = False
 
     with patch(
-        "camera_receiver.send_signal_prey_alert", new_callable=AsyncMock
+        "notifications.send_signal_prey_alert", new_callable=AsyncMock
     ) as mock_notify:
         await camera_receiver.fetch_and_evaluate(
             state,

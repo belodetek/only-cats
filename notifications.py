@@ -1,14 +1,17 @@
 # pylint: disable=broad-exception-caught
 """Signal notifications."""
 
+import asyncio
 import base64
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 # pylint: disable=import-error
 import httpx
+import numpy as np
+from ultralytics.engine.results import Results
 
 # pylint: enable=import-error
 import config
@@ -87,3 +90,19 @@ async def send_signal_prey_alert(
 
     except Exception as exc:
         logger.error("Failed to send Signal prey alert: %s", exc)
+
+
+async def persist_and_notify(
+    img: np.ndarray,
+    result: Optional[Results],
+    event_data: dict[str, Any],
+    persist_fn: Callable[[np.ndarray, Optional[Results]], Optional[tuple[str, str]]],
+) -> None:
+    """Save training pair to disk first, then send Signal prey alert with attachments."""
+    saved = await asyncio.to_thread(persist_fn, img, result)
+    img_path, label_path = saved if saved else (None, None)
+    await send_signal_prey_alert(
+        event_data=event_data,
+        image_path=img_path,
+        label_path=label_path,
+    )

@@ -10,32 +10,30 @@ and dispatches Signal alerts with event metadata, labels, and snapshot.
 """
 
 import asyncio
-import hmac
-import ipaddress
 import logging
 import os
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from json.decoder import JSONDecodeError
 from typing import Any, Optional
 
 # pylint: disable=import-error
-import cv2
 import httpx
 import numpy as np
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
-from ultralytics.engine.results import Results
 
 # pylint: enable=import-error
 import config
+import routes
 import web_ui
+from dispenser import trigger_dispenser as _trigger_dispenser
 from esp32 import ESP32SerialController
 from flasher import auto_flash_esp32_if_updated
-from notifications import send_signal_prey_alert
+from notifications import persist_and_notify
+from vision import persist_training_pair, run_inference
 
 logging.basicConfig(
     format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
@@ -110,147 +108,8 @@ async def lifespan(app_instance: FastAPI):
 
 app = FastAPI(title=config.app_name, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(web_ui.STATIC_DIR)), name="static")
+app.include_router(routes.router)
 app.include_router(web_ui.router)
-
-
-async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:
-    """Send authenticated POST request to the oauth2-proxy protected /dispense API."""
-    if (
-        not config.dispenser_url
-        or not config.dispenser_password
-        or not config.dispenser_user
-    ):
-        logger.warning(
-            "Dispenser skipped: DISPENSER_URL or DISPENSER_PASSWORD not set."
-        )
-        return
-
-    payload = {
-        "side": config.dispenser_side,
-        "runsecs": config.dispenser_runsecs,
-    }
-    auth = httpx.BasicAuth(
-        username=config.dispenser_user,
-        password=config.dispenser_password,
-    )
-
-    try:
-        resp = await http_client.post(
-            config.dispenser_url,
-            json=payload,
-            auth=auth,
-            timeout=10.0,
-        )
-        if resp.is_success:
-            logger.info(
-                "Dispenser triggered successfully (%d): %s",
-                resp.status_code,
-                resp.text,
-            )
-        else:
-            logger.error(
-                "Dispenser request rejected (%d): %s",
-                resp.status_code,
-                resp.text,
-            )
-    except httpx.RequestError as exc:
-        logger.error("Network error calling dispenser API: %s", exc)
-
-
-def _persist_training_pair(
-    img: np.ndarray,
-    result: Optional[Results],
-    prefix: str = "prey",
-) -> Optional[tuple[str, str]]:
-    """Persist raw image and normalized YOLO bounding boxes, returning saved paths."""
-    try:
-        base_name = (
-            f"{prefix}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
-        )
-        img_path = os.path.join(config.images_dir, f"{base_name}.jpg")
-        label_path = os.path.join(config.labels_dir, f"{base_name}.txt")
-
-        # pylint: disable=no-member
-        success = cv2.imwrite(img_path, img)
-        # pylint: enable=no-member
-
-        if not success:
-            logger.error("Failed to write image snapshot to %s", img_path)
-            return None
-
-        label_lines: list[str] = []
-        if result is not None and result.boxes is not None and len(result.boxes) > 0:
-            # xywhn provides normalized (x_center, y_center, width, height) in range [0.0, 1.0]
-            boxes_xywhn = result.boxes.xywhn.cpu().numpy()
-            classes = result.boxes.cls.cpu().numpy().astype(int)
-
-            for cls_id, box in zip(classes, boxes_xywhn):
-                x_c, y_c, width, height = box
-                label_lines.append(
-                    f"{cls_id} {x_c:.6f} {y_c:.6f} {width:.6f} {height:.6f}\n"
-                )
-
-        with open(label_path, "w", encoding="utf-8") as label_file:
-            label_file.writelines(label_lines)
-
-        logger.info("Persisted training pair: %s and %s", img_path, label_path)
-        return img_path, label_path
-
-    except OSError as exc:
-        logger.error("Filesystem error while persisting training pair: %s", exc)
-        return None
-
-
-async def _persist_and_notify(
-    img: np.ndarray,
-    result: Optional[Results],
-    event_data: dict[str, Any],
-) -> None:
-    """Save training pair to disk first, then send Signal prey alert with attachments."""
-    saved = await asyncio.to_thread(_persist_training_pair, img, result)
-    img_path, label_path = saved if saved else (None, None)
-    await send_signal_prey_alert(
-        event_data=event_data,
-        image_path=img_path,
-        label_path=label_path,
-    )
-
-
-def _resolve_camera_url(client_host: Optional[str]) -> str:
-    """Build camera base URL from webhook client IP, falling back to config.camera_url."""
-    default_url = config.camera_url
-    if not client_host or client_host == "unknown":
-        return default_url
-
-    try:
-        ip = ipaddress.ip_address(client_host)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid client IP") from exc
-
-    # Reject localhost, link-local (169.254.x.x), or non-LAN IPs
-    if (
-        ip.is_loopback
-        or ip.is_link_local
-        or not any(ip in net for net in config.camera_networks)
-    ):
-        raise HTTPException(
-            status_code=403, detail="Client IP not in trusted camera subnet"
-        )
-
-    host = f"[{client_host}]" if ":" in client_host else client_host
-    return (
-        f"https://{host}"  # assume HTTPS by default (configure via Reolink web admin)
-    )
-
-
-def _run_inference(model: YOLO, img_array: np.ndarray, conf: float):
-    # pylint: disable=no-member
-    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-    # pylint: enable=no-member
-    if img is None:
-        return None, None
-    results = model.predict(source=img, conf=conf, verbose=False)
-    return img, results
 
 
 async def fetch_and_evaluate(
@@ -289,7 +148,7 @@ async def fetch_and_evaluate(
 
         t1 = time.perf_counter()
         img, results = await asyncio.to_thread(
-            _run_inference, state.model, img_array, config.conf_threshold
+            run_inference, state.model, img_array, config.conf_threshold
         )
         infer_ms = (time.perf_counter() - t1) * 1000
 
@@ -355,10 +214,10 @@ async def fetch_and_evaluate(
                 ],
                 **(webhook_event or {}),
             }
-            await _persist_and_notify(img, top_result, event_data)
+            await persist_and_notify(img, top_result, event_data, persist_training_pair)
         elif config.in_training:
             logger.info("IN_TRAINING enabled: persisting training pair.")
-            await asyncio.to_thread(_persist_training_pair, img, top_result, "train")
+            await asyncio.to_thread(persist_training_pair, img, top_result, "train")
 
     except httpx.RequestError as exc:
         logger.error("Network error communicating with Reolink camera: %s", exc)
@@ -366,148 +225,3 @@ async def fetch_and_evaluate(
         logger.error(
             "Unexpected error during evaluation pipeline: %s", exc, exc_info=True
         )
-
-
-def _verify_secret(secret: Optional[str], x_webhook_secret: Optional[str]) -> None:
-    """Validate shared secret from either query parameter or X-Webhook-Secret header."""
-    provided_secret = secret or x_webhook_secret
-    if (
-        not config.webhook_secret
-        or not provided_secret
-        or not hmac.compare_digest(provided_secret, config.webhook_secret)
-    ):
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
-
-
-@app.post("/webhook/reolink")
-async def reolink_webhook(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    secret: Optional[str] = Query(
-        None, description="Webhook shared secret via query param"
-    ),
-    x_webhook_secret: Optional[str] = Header(
-        None, alias="X-Webhook-Secret", description="Webhook shared secret via header"
-    ),
-) -> dict:
-    """Handle incoming motion alert webhooks dispatched by the Reolink camera."""
-    provided_secret = secret or x_webhook_secret
-    if (
-        not config.webhook_secret
-        or not provided_secret
-        or not hmac.compare_digest(provided_secret, config.webhook_secret)
-    ):
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
-
-    client_host = request.client.host if request.client else None
-    client_port = request.client.port if request.client else "unknown"
-    headers = dict(request.headers)
-    camera_base_url = _resolve_camera_url(client_host)
-
-    logger.info(
-        "Webhook request from %s:%s -> target camera %s | Method: %s | URL: %s | Headers: %s",
-        client_host or "unknown",
-        client_port,
-        camera_base_url,
-        request.method,
-        request.url,
-        headers,
-    )
-
-    webhook_event: dict[str, Any] = {"camera_url": camera_base_url}
-    alarm_type = ""
-    try:
-        payload = await request.json()
-        alarm_type = str(payload.get("alarm", {}).get("type", "")).strip().upper()
-        webhook_event["alarm_type"] = alarm_type
-        webhook_event["webhook_payload"] = payload
-        logger.info("Webhook event received: %s | Payload: %s", alarm_type, payload)
-    except (JSONDecodeError, ValueError, UnicodeDecodeError):
-        raw_body = await request.body()
-        raw_text = raw_body.decode("utf-8", errors="replace")
-        webhook_event["raw_body"] = raw_text
-        logger.info("Webhook non-JSON body: %s", raw_text)
-
-    if alarm_type not in config.allowed_alarm_types:
-        logger.info(
-            "Ignoring webhook alarm type '%s' (allowed: %s).",
-            alarm_type or "UNKNOWN",
-            sorted(config.allowed_alarm_types),
-        )
-        return {
-            "status": "ignored",
-            "alarm_type": alarm_type or None,
-            "camera_url": camera_base_url,
-        }
-
-    deps: AppState = request.app.state.deps
-    background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
-    return {"status": "queued", "camera_url": camera_base_url}
-
-
-@app.post("/lock")
-async def force_lock(
-    request: Request,
-    secret: Optional[str] = Query(None, description="Shared secret via query param"),
-    x_webhook_secret: Optional[str] = Header(
-        None, alias="X-Webhook-Secret", description="Shared secret via header"
-    ),
-) -> dict:
-    """Force the door lock closed persistently until /unlock or power loss."""
-    _verify_secret(secret, x_webhook_secret)
-    deps: AppState = request.app.state.deps
-    if not deps.controller:
-        raise HTTPException(status_code=503, detail="Lock controller not initialized")
-    deps.controller.admin_lock()
-    return {"status": "locked", "admin_override": "locked"}
-
-
-@app.post("/unlock")
-async def force_unlock(
-    request: Request,
-    secret: Optional[str] = Query(None, description="Shared secret via query param"),
-    x_webhook_secret: Optional[str] = Header(
-        None, alias="X-Webhook-Secret", description="Shared secret via header"
-    ),
-) -> dict:
-    """Force the door lock open persistently until /lock or power loss."""
-    _verify_secret(secret, x_webhook_secret)
-    deps: AppState = request.app.state.deps
-    if not deps.controller:
-        raise HTTPException(status_code=503, detail="Lock controller not initialized")
-    deps.controller.admin_unlock()
-    return {"status": "unlocked", "admin_override": "unlocked"}
-
-
-@app.get("/health")
-async def health(request: Request) -> dict:
-    """Expose container health check metrics for Docker daemon and monitoring."""
-    deps: AppState = request.app.state.deps
-    controller = deps.controller
-    model = deps.model
-
-    now = time.time()
-    is_serial_ok = bool(controller and controller.is_connected)
-    is_model_loaded = model is not None
-    admin_override = controller.admin_override if controller else None
-    is_lock_active = bool(
-        controller
-        and (
-            admin_override == "locked"
-            or (admin_override is None and now < controller.lock_until)
-        )
-    )
-    remaining_lockout = (
-        max(0.0, controller.lock_until - now)
-        if controller and admin_override is None
-        else 0.0
-    )
-
-    return {
-        "status": "healthy",
-        "serial_connected": is_serial_ok,
-        "model_loaded": is_model_loaded,
-        "lock_engaged": is_lock_active,
-        "admin_override": admin_override,
-        "lockout_remaining_seconds": round(remaining_lockout, 1),
-    }
