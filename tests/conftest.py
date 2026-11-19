@@ -186,9 +186,43 @@ def live_ui_server():
     thread.join(timeout=3.0)
 
 
+@pytest.fixture(scope="session")
+def _session_traefik_uvicorn():
+    """Start a single Uvicorn instance on 0.0.0.0:8000 for Traefik routing tests."""
+    config_uv = uvicorn.Config(
+        camera_receiver.app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="error",
+        lifespan="off",
+    )
+    server = uvicorn.Server(config_uv)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", 8000), timeout=0.2):
+                break
+        except OSError:
+            time.sleep(0.05)
+    else:
+        raise RuntimeError("Uvicorn test server failed to bind port 8000 within 10s")
+
+    yield {
+        "domain_https": "https://iwatch.local.test",
+        "domain_http": "http://iwatch.local.test",
+        "balena_http": "http://test-device.balena-devices.com",
+    }
+
+    server.should_exit = True
+    thread.join(timeout=3.0)
+
+
 @pytest.fixture
-def traefik_ui_server():
-    """Run FastAPI on 0.0.0.0:8000 so the sibling Traefik container routes to it."""
+def traefik_ui_server(_session_traefik_uvicorn):
+    """Provide fresh mocked AppState per test backed by the shared port-8000 server."""
     controller = MagicMock()
     controller.is_connected = True
     controller.lock_until = 0.0
@@ -201,27 +235,7 @@ def traefik_ui_server():
     )
     camera_receiver.app.state.deps = state
 
-    config_uv = uvicorn.Config(
-        camera_receiver.app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="error",
-        lifespan="off",
-    )
-    server = uvicorn.Server(config_uv)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    deadline = time.time() + 5.0
-    while not server.started and time.time() < deadline:
-        time.sleep(0.02)
-
-    yield {
-        "domain_https": "https://iwatch.local.test",
-        "domain_http": "http://iwatch.local.test",
-        "balena_http": "http://test-device.balena-devices.com",
+    return {
+        **_session_traefik_uvicorn,
         "state": state,
     }
-
-    server.should_exit = True
-    thread.join(timeout=3.0)

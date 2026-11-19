@@ -7,9 +7,12 @@ services:
       dockerfile: Dockerfile.test
     ipc: host
     depends_on:
-      - traefik
-      - oauth2-proxy
-      - mock-camera
+      traefik:
+        condition: service_healthy
+      oauth2-proxy:
+        condition: service_healthy
+      mock-camera:
+        condition: service_started
     environment:
       LOG_LEVEL: DEBUG
       DATA_DIR: /tmp/test-data
@@ -31,6 +34,7 @@ services:
       context: ./traefik
     command:
       - "--api.dashboard=true"
+      - "--ping=true"
       - "--certificatesresolvers.letsencrypt.acme.caserver=https://127.0.0.1:14000/dir"
       - "--certificatesresolvers.letsencrypt.acme.email=test@example.com"
       - "--certificatesresolvers.letsencrypt.acme.storage=/tmp/acme.json"
@@ -46,6 +50,11 @@ services:
       CERT_RESOLVER: ""
     volumes:
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
     networks:
       test-net:
         aliases:
@@ -71,6 +80,11 @@ services:
             def log_message(self, *a):
                 pass
         HTTPServer(('0.0.0.0', 4180), H).serve_forever()
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4180/')"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
     networks:
       - test-net
 
