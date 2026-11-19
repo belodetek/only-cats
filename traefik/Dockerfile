@@ -2,6 +2,6 @@ FROM traefik@sha256:aa942a00bce033c909bf1f7e861d93761be4b31a035f10d2410d33e38a8f
 
 RUN apk add --no-cache tzdata
 
-RUN mkdir -p /etc/traefik
+RUN mkdir -p /etc/traefik/dynamic
 
-COPY balena.yml /etc/traefik/balena.yml
+COPY dynamic/ /etc/traefik/dynamic/

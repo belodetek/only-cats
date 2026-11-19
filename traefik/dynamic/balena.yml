@@ -1,0 +1,62 @@
+http:
+  routers:
+    balena-oauth2-proxy:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/oauth2`)'
+      entryPoints:
+        - web
+      priority: 600
+      middlewares:
+        - balena-https-proto
+      service: oauth2-proxy-svc
+
+    balena-dashboard:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+      entryPoints:
+        - web
+      priority: 500
+      middlewares:
+        - balena-https-proto
+        - oauth2-auth
+        - dashboard-redirect
+      service: api@internal
+
+    balena-cat-cam-1-flv:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/flv`)'
+      entryPoints:
+        - web
+      priority: 450
+      middlewares:
+        - balena-https-proto
+      service: cat-cam-1-flv-svc
+
+    balena-cat-cam-1:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/cctv1`)'
+      entryPoints:
+        - web
+      priority: 400
+      middlewares:
+        - balena-https-proto
+        - oauth2-auth
+        - cam-1-redirect
+        - cam-1-strip
+      service: cat-cam-1-svc
+
+    balena-cat-cam-1-assets:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
+      entryPoints:
+        - web
+      priority: 400
+      middlewares:
+        - balena-https-proto
+        - oauth2-auth
+      service: cat-cam-1-svc
+
+    balena-iwatch-ui:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
+      entryPoints:
+        - web
+      priority: 350
+      middlewares:
+        - balena-https-proto
+        - oauth2-auth
+      service: iwatch-ulock-svc

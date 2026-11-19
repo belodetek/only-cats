@@ -1,0 +1,68 @@
+http:
+  routers:
+    redirect-to-https:
+      rule: '!HostRegexp(`^.+\.balena-devices\.com$`) && !Header(`X-Forwarded-Proto`, `https`)'
+      entryPoints:
+        - web
+      priority: 1000
+      middlewares:
+        - redirect-scheme-https
+      service: noop@internal
+
+  middlewares:
+    oauth2-auth:
+      forwardAuth:
+        address: http://oauth2-proxy:4180/
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - Authorization
+
+    redirect-scheme-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    balena-https-proto:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+
+    dashboard-redirect:
+      redirectRegex:
+        regex: '^(https?://[^/]+/dashboard)$'
+        replacement: '${1}/'
+
+    cam-1-redirect:
+      redirectRegex:
+        regex: '^(https?://[^/]+/cctv1)$'
+        replacement: '${1}/'
+
+    cam-1-strip:
+      stripPrefix:
+        prefixes:
+          - /cctv1
+
+  services:
+    oauth2-proxy-svc:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy:4180
+
+    cat-cam-1-svc:
+      loadBalancer:
+        servers:
+          - url: https://{{ env "CAT_CAM_1" }}:443
+
+    cat-cam-1-flv-svc:
+      loadBalancer:
+        responseForwarding:
+          flushInterval: -1
+        servers:
+          - url: https://{{ env "CAT_CAM_1" }}:443
+
+    iwatch-ulock-svc:
+      loadBalancer:
+        servers:
+          - url: http://iwatch-ulock:8000
