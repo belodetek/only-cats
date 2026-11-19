@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.test
-    ipc: host
+    shm_size: 512m
     depends_on:
       traefik:
         condition: service_healthy

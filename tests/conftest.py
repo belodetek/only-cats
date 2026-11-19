@@ -5,6 +5,7 @@ import ipaddress
 import socket
 import threading
 import time
+import urllib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -189,6 +190,17 @@ def live_ui_server():
 @pytest.fixture(scope="session")
 def _session_traefik_uvicorn():
     """Start a single Uvicorn instance on 0.0.0.0:8000 for Traefik routing tests."""
+    controller = MagicMock()
+    controller.is_connected = True
+    controller.lock_until = 0.0
+    bind_admin_override_mock(controller)
+
+    camera_receiver.app.state.deps = camera_receiver.AppState(
+        controller=controller,
+        model=MagicMock(),
+        http_client=AsyncMock(),
+    )
+
     config_uv = uvicorn.Config(
         camera_receiver.app,
         host="0.0.0.0",
@@ -197,25 +209,23 @@ def _session_traefik_uvicorn():
         lifespan="off",
     )
     server = uvicorn.Server(config_uv)
+    server.install_signal_handlers = lambda: None
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
-    target_host = socket.gethostbyname("iwatch-ulock")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    last_err: Exception | None = None
     deadline = time.time() + 10.0
     while time.time() < deadline:
         try:
-            with socket.create_connection((target_host, 8000), timeout=0.2) as sock:
-                sock.sendall(
-                    b"GET /openapi.json HTTP/1.1\r\nHost: iwatch-ulock\r\nConnection: close\r\n\r\n"
-                )
-                if b"200 OK" in sock.recv(64):
+            with opener.open("http://127.0.0.1:8000/health", timeout=0.5) as resp:
+                if resp.status == 200:
                     break
-        except OSError:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            last_err = exc
             time.sleep(0.05)
     else:
-        raise RuntimeError(
-            f"Uvicorn test server failed to serve HTTP on {target_host}:8000 within 10s"
-        )
+        raise RuntimeError(f"Uvicorn test server failed within 10s: {last_err!r}")
 
     yield {
         "domain_https": "https://iwatch.local.test",
