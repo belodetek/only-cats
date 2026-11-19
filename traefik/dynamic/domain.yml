@@ -6,8 +6,12 @@ http:
         - websecure
       priority: 600
       service: oauth2-proxy-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
 
     domain-dashboard:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
@@ -18,8 +22,12 @@ http:
         - oauth2-auth
         - dashboard-redirect
       service: api@internal
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
 
     domain-cat-cam-1-flv:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/flv`)'
@@ -27,8 +35,12 @@ http:
         - websecure
       priority: 450
       service: cat-cam-1-flv-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
 
     domain-cat-cam-1:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/cctv1`)'
@@ -40,8 +52,12 @@ http:
         - cam-1-redirect
         - cam-1-strip
       service: cat-cam-1-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
 
     domain-cat-cam-1-assets:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
@@ -51,8 +67,12 @@ http:
       middlewares:
         - oauth2-auth
       service: cat-cam-1-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
 
     domain-iwatch-ui:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
@@ -62,8 +82,12 @@ http:
       middlewares:
         - oauth2-auth
       service: iwatch-ulock-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
 
     domain-iwatch-ublock:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
@@ -71,5 +95,9 @@ http:
         - websecure
       priority: 300
       service: iwatch-ulock-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
       tls:
         certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}

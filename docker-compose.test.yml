@@ -25,7 +25,10 @@ services:
     command: >
       pytest -v --tb=short -o asyncio_default_fixture_loop_scope=function tests/
     networks:
-      - test-net
+      test-net:
+        aliases:
+          - sut
+          - iwatch-ulock
 
   traefik:
     build:
