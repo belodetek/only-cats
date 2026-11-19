@@ -28,32 +28,29 @@ services:
       - 1.1.1.1
     networks:
       - only-cats
-    entrypoint: ["/bin/sh", "-c"]
     command:
-      - |
-        exec traefik \
-          --accesslog.fields.headers.defaultmode=keep \
-          --accesslog.format=common \
-          --accesslog=true \
-          --api.dashboard=true \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15 \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5 \
-          --certificatesresolvers.letsencrypt.acme.dnschallenge=true \
-          --certificatesresolvers.letsencrypt.acme.email="${ACME_EMAIL}" \
-          --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json \
-          --entrypoints.web.address=:80 \
-          --entrypoints.web.forwardedHeaders.insecure=true \
-          --entrypoints.web.http.aliasHeadersStrategy=reject \
-          --entrypoints.websecure.address=:443 \
-          --entrypoints.websecure.http.aliasHeadersStrategy=reject \
-          --metrics.prometheus.addrouterslabels=true \
-          --metrics.prometheus.addserviceslabels=true \
-          --metrics.prometheus=true \
-          --ping.entrypoint=traefik \
-          --ping=true \
-          --providers.file.directory=/etc/traefik/dynamic \
-          --providers.file.watch=true \
-          --serversTransport.insecureSkipVerify=true
+      - "--accesslog.fields.headers.defaultmode=keep"
+      - "--accesslog.format=common"
+      - "--accesslog=true"
+      - "--api.dashboard=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=\"${ACME_EMAIL}\""
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.forwardedHeaders.insecure=true"
+      - "--entrypoints.web.http.aliasHeadersStrategy=reject"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.aliasHeadersStrategy=reject"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addserviceslabels=true"
+      - "--metrics.prometheus=true"
+      - "--ping.entrypoint=traefik"
+      - "--ping=true"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--serversTransport.insecureSkipVerify=true"
     environment:
       CERT_RESOLVER: letsencrypt
     healthcheck:
