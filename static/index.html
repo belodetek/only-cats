@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>iWatch uLock Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-8">
+
+  <!-- Header -->
+  <header class="w-full max-w-xl flex items-center justify-between border-b border-slate-800 pb-4">
+    <div class="flex items-center gap-3">
+      <img
+        src="/static/logo.png"
+        alt="Logo"
+        class="w-10 h-10 rounded-lg object-contain bg-slate-900 p-1 border border-slate-800"
+      />
+      <div>
+        <h1 class="text-lg sm:text-xl font-semibold tracking-tight">iWatch uLock</h1>
+        <p class="text-xs text-slate-400">Pet Door &amp; Prey Lockout Controller</p>
+      </div>
+    </div>
+
+    <div id="status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-300">
+      <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+      <span id="status-text">Checking...</span>
+    </div>
+  </header>
+
+  <!-- Main 4-Button Control Grid -->
+  <main class="w-full max-w-xl my-auto py-6 flex flex-col gap-6">
+    <div class="grid grid-cols-2 gap-4 sm:gap-5">
+      <!-- 1. LOCK -->
+      <button
+        id="btn-lock"
+        type="button"
+        class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-rose-600/90 hover:bg-rose-600 text-white font-semibold shadow-lg shadow-rose-950/50 border border-rose-500/40 p-4 cursor-pointer"
+      >
+        <i data-lucide="lock" class="w-9 h-9 sm:w-10 sm:h-10"></i>
+        <span class="text-base sm:text-lg">Lock</span>
+        <span class="text-xs font-normal text-rose-100/80">Force Closed</span>
+      </button>
+
+      <!-- 2. UNLOCK -->
+      <button
+        id="btn-unlock"
+        type="button"
+        class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-emerald-600/90 hover:bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-950/50 border border-emerald-500/40 p-4 cursor-pointer"
+      >
+        <i data-lucide="lock-open" class="w-9 h-9 sm:w-10 sm:h-10"></i>
+        <span class="text-base sm:text-lg">Unlock</span>
+        <span class="text-xs font-normal text-emerald-100/80">Force Open</span>
+      </button>
+
+      <!-- 3. INFO -->
+      <button
+        id="btn-info"
+        type="button"
+        class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold shadow-lg border border-slate-700 p-4 cursor-pointer"
+      >
+        <i data-lucide="activity" class="w-9 h-9 sm:w-10 sm:h-10 text-sky-400"></i>
+        <span class="text-base sm:text-lg">Info</span>
+        <span class="text-xs font-normal text-slate-400">System Health</span>
+      </button>
+
+      <!-- 4. CAMERA -->
+      <button
+        id="btn-camera"
+        type="button"
+        class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold shadow-lg border border-slate-700 p-4 cursor-pointer"
+      >
+        <i data-lucide="video" class="w-9 h-9 sm:w-10 sm:h-10 text-amber-400"></i>
+        <span class="text-base sm:text-lg">Camera</span>
+        <span class="text-xs font-normal text-slate-400">Live Feed (/cctv1)</span>
+      </button>
+    </div>
+
+    <!-- Feedback Toast -->
+    <div id="toast" class="hidden rounded-xl px-4 py-3 text-sm font-medium border text-center"></div>
+
+    <!-- /health Output Drawer -->
+    <section
+      id="health-panel"
+      class="hidden rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-5 shadow-inner"
+    >
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2 text-sm font-semibold text-sky-400">
+          <i data-lucide="server" class="w-4 h-4"></i>
+          <span>/health Diagnostics</span>
+        </div>
+        <button id="btn-close-info" type="button" class="text-xs text-slate-400 hover:text-slate-200">
+          Hide
+        </button>
+      </div>
+      <dl id="health-grid" class="grid grid-cols-2 gap-2.5 text-xs sm:text-sm mb-3"></dl>
+      <pre id="health-raw" class="text-xs bg-slate-950 text-slate-300 p-3 rounded-lg overflow-x-auto border border-slate-800/80"></pre>
+    </section>
+  </main>
+
+  <footer class="w-full max-w-xl text-center text-xs text-slate-500 pt-2">
+    Admin override persists until changed or power cycled.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

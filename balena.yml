@@ -11,7 +11,7 @@ assets:
     type: blob.asset
     data:
       url: >-
-        https://raw.githubusercontent.com/belodetek/only-cats/master/logo.png
+        https://raw.githubusercontent.com/belodetek/only-cats/master/static/logo.png
 data:
   applicationEnvironmentVariables:
     - TRAEFIK_LOG_LEVEL: INFO

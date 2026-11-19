@@ -26,11 +26,13 @@ import cv2
 import httpx
 import numpy as np
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
+from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 # pylint: enable=import-error
 import config
+import web_ui
 from esp32 import ESP32SerialController
 from flasher import auto_flash_esp32_if_updated
 from notifications import send_signal_prey_alert
@@ -107,6 +109,8 @@ async def lifespan(app_instance: FastAPI):
 
 
 app = FastAPI(title=config.app_name, lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(web_ui.STATIC_DIR)), name="static")
+app.include_router(web_ui.router)
 
 
 async def _trigger_dispenser(http_client: httpx.AsyncClient) -> None:

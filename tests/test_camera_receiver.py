@@ -9,7 +9,11 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import camera_receiver
-from tests.conftest import make_yolo_result
+from tests.conftest import (
+    assert_admin_lock_unlock_flow,
+    bind_admin_override_mock,
+    make_yolo_result,
+)
 
 
 def _make_state(
@@ -413,44 +417,23 @@ def test_webhook_ignores_non_whitelisted_alarm_types():
 def test_admin_lock_and_unlock_endpoints():
     """Verify /lock and /unlock enforce auth, update controller state, and reflect in /health."""
     state = _make_state()
-    state.controller.admin_override = None
-
-    def _set_locked():
-        state.controller.admin_override = "locked"
-
-    def _set_unlocked():
-        state.controller.admin_override = "unlocked"
-
-    state.controller.admin_lock.side_effect = _set_locked
-    state.controller.admin_unlock.side_effect = _set_unlocked
+    bind_admin_override_mock(state.controller)
     camera_receiver.app.state.deps = state
 
     secret = camera_receiver.config.webhook_secret
     client = TestClient(camera_receiver.app, raise_server_exceptions=False)
 
-    # Unauthorized requests are rejected
     assert client.post("/lock").status_code == 401
     assert client.post("/unlock").status_code == 401
 
-    # Force lock closed
-    lock_resp = client.post("/lock", headers={"X-Webhook-Secret": secret})
-    assert lock_resp.status_code == 200
-    assert lock_resp.json() == {"status": "locked", "admin_override": "locked"}
-    state.controller.admin_lock.assert_called_once()
-
-    health_locked = client.get("/health").json()
-    assert health_locked["lock_engaged"] is True
-    assert health_locked["admin_override"] == "locked"
-
-    # Force lock open
-    unlock_resp = client.post("/unlock", params={"secret": secret})
-    assert unlock_resp.status_code == 200
-    assert unlock_resp.json() == {"status": "unlocked", "admin_override": "unlocked"}
-    state.controller.admin_unlock.assert_called_once()
-
-    health_unlocked = client.get("/health").json()
-    assert health_unlocked["lock_engaged"] is False
-    assert health_unlocked["admin_override"] == "unlocked"
+    assert_admin_lock_unlock_flow(
+        client=client,
+        controller=state.controller,
+        lock_url="/lock",
+        unlock_url="/unlock",
+        lock_kwargs={"headers": {"X-Webhook-Secret": secret}},
+        unlock_kwargs={"params": {"secret": secret}},
+    )
 
 
 @pytest.mark.asyncio

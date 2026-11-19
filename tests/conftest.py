@@ -1,4 +1,4 @@
-# pylint: disable=import-error
+# pylint: disable=import-error,too-many-positional-arguments,too-many-arguments
 """Shared pytest fixtures for iwatch-ulock unit tests."""
 
 import ipaddress
@@ -96,3 +96,45 @@ def make_yolo_result(detections: list[tuple[int, float, list[float]]]):
     boxes.conf = conf_arr
     boxes.xywhn = xywhn_tensor
     return SimpleNamespace(boxes=boxes)
+
+
+def bind_admin_override_mock(controller) -> None:
+    """Wire mock controller admin_lock/admin_unlock side effects to update admin_override."""
+    controller.admin_override = None
+
+    def _set_locked() -> None:
+        controller.admin_override = "locked"
+
+    def _set_unlocked() -> None:
+        controller.admin_override = "unlocked"
+
+    controller.admin_lock.side_effect = _set_locked
+    controller.admin_unlock.side_effect = _set_unlocked
+
+
+def assert_admin_lock_unlock_flow(
+    client,
+    controller,
+    lock_url: str,
+    unlock_url: str,
+    lock_kwargs: dict | None = None,
+    unlock_kwargs: dict | None = None,
+) -> None:
+    """Assert POST lock/unlock endpoints update controller state and /health metrics."""
+    lock_resp = client.post(lock_url, **(lock_kwargs or {}))
+    assert lock_resp.status_code == 200
+    assert lock_resp.json() == {"status": "locked", "admin_override": "locked"}
+    controller.admin_lock.assert_called_once()
+
+    health_locked = client.get("/health").json()
+    assert health_locked["lock_engaged"] is True
+    assert health_locked["admin_override"] == "locked"
+
+    unlock_resp = client.post(unlock_url, **(unlock_kwargs or {}))
+    assert unlock_resp.status_code == 200
+    assert unlock_resp.json() == {"status": "unlocked", "admin_override": "unlocked"}
+    controller.admin_unlock.assert_called_once()
+
+    health_unlocked = client.get("/health").json()
+    assert health_unlocked["lock_engaged"] is False
+    assert health_unlocked["admin_override"] == "unlocked"
