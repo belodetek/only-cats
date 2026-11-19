@@ -32,10 +32,6 @@ services:
       context: ./traefik
     command:
       - "--api.dashboard=true"
-      - "--certificatesresolvers.letsencrypt.acme.caserver=https://127.0.0.1:14000/dir"
-      - "--certificatesresolvers.letsencrypt.acme.email=test@example.com"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/tmp/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--log.level=DEBUG"
@@ -46,7 +42,7 @@ services:
     environment:
       DOMAIN_NAME: iwatch.local.test
       CAT_CAM_1: mock-camera
-      CERT_RESOLVER: ""
+      CERT_RESOLVER: "none"
       IWATCH_ULOCK_URL: http://sut:8000
     volumes:
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
