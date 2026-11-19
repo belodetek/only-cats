@@ -6,6 +6,7 @@ import socket
 import threading
 import time
 import urllib
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -189,7 +190,7 @@ def live_ui_server():
 
 @pytest.fixture(scope="session")
 def _session_traefik_uvicorn():
-    """Start a single Uvicorn instance on 0.0.0.0:8000 for Traefik routing tests."""
+    """Start Uvicorn on 0.0.0.0:8000 and point Traefik directly to this container's IP."""
     controller = MagicMock()
     controller.is_connected = True
     controller.lock_until = 0.0
@@ -227,14 +228,50 @@ def _session_traefik_uvicorn():
     else:
         raise RuntimeError(f"Uvicorn test server failed within 10s: {last_err!r}")
 
-    yield {
-        "domain_https": "https://iwatch.local.test",
-        "domain_http": "http://iwatch.local.test",
-        "balena_http": "http://test-device.balena-devices.com",
-    }
+    # Flowzone 'docker compose run sut' doesn't create network aliases
+    # .. so, resolve this container's bridge IP so Traefik reaches it
+    # when '.. run' is used instead of '.. up'
+    sut_ip = socket.gethostbyname(socket.gethostname())
+    dynamic_dir = Path(__file__).resolve().parent.parent / "traefik" / "dynamic"
+    override_file = dynamic_dir / "_test_upstream.yml"
+    override_file.write_text(
+        "http:\n"
+        "  services:\n"
+        "    iwatch-ulock-svc:\n"
+        "      loadBalancer:\n"
+        "        servers:\n"
+        f"          - url: http://{sut_ip}:8000\n",
+        encoding="utf-8",
+    )
 
-    server.should_exit = True
-    thread.join(timeout=3.0)
+    # Wait until Traefik reloads _test_upstream.yml and routes /health -> 200
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        try:
+            with opener.open(
+                "http://test-device.balena-devices.com/health", timeout=0.5
+            ) as resp:
+                if resp.status == 200:
+                    break
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            last_err = exc
+            time.sleep(0.1)
+    else:
+        override_file.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Traefik did not reload {override_file} within 10s: {last_err!r}"
+        )
+
+    try:
+        yield {
+            "domain_https": "https://iwatch.local.test",
+            "domain_http": "http://iwatch.local.test",
+            "balena_http": "http://test-device.balena-devices.com",
+        }
+    finally:
+        override_file.unlink(missing_ok=True)
+        server.should_exit = True
+        thread.join(timeout=3.0)
 
 
 @pytest.fixture

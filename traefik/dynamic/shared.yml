@@ -65,4 +65,4 @@ http:
     iwatch-ulock-svc:
       loadBalancer:
         servers:
-          - url: '{{ or (env "IWATCH_ULOCK_URL") "http://iwatch-ulock:8000" }}'
+          - url: http://iwatch-ulock:8000

@@ -46,7 +46,6 @@ services:
       DOMAIN_NAME: iwatch.local.test
       CAT_CAM_1: mock-camera
       CERT_RESOLVER: "none"
-      IWATCH_ULOCK_URL: http://sut:8000
     volumes:
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
     healthcheck:
