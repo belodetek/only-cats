@@ -51,8 +51,6 @@ services:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--serversTransport.insecureSkipVerify=true"
-    environment:
-      CERT_RESOLVER: letsencrypt
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 30s
