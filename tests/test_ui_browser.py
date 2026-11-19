@@ -95,3 +95,66 @@ def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
 
     expect(page).to_have_url(f"{base_url}/cctv1")
     expect(page.get_by_role("heading", name="CCTV1 Stream")).to_be_visible()
+
+
+@pytest.mark.parametrize("target_key", ["domain_https", "balena_http"])
+def test_traefik_routes_ui_and_camera_end_to_end(
+    browser, traefik_ui_server, target_key
+):
+    """Verify Traefik routes /, /ui/lock, /ui/unlock, and /cctv1 on both hostnames."""
+    base_url = traefik_ui_server[target_key]
+    state = traefik_ui_server["state"]
+
+    context = browser.new_context(ignore_https_errors=True)
+    page = context.new_page()
+    _stub_external_cdns(page, base_url)
+
+    # 1. Load UI through Traefik
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    expect(page.get_by_role("heading", name="iWatch uLock")).to_be_visible()
+
+    # 2. Lock & Unlock buttons traverse Traefik -> oauth2-auth -> FastAPI
+    page.locator("#btn-lock").click()
+    expect(page.locator("#status-text")).to_have_text("Locked (Admin)")
+    state.controller.admin_lock.assert_called_once()
+
+    page.locator("#btn-unlock").click()
+    expect(page.locator("#status-text")).to_have_text("Unlocked (Admin)")
+    state.controller.admin_unlock.assert_called_once()
+
+    # 3. Camera button redirects /cctv1 -> /cctv1/ -> StripPrefix -> mock-camera
+    page.locator("#btn-camera").click()
+    expect(page).to_have_url(f"{base_url}/cctv1/")
+    expect(page.get_by_role("heading", name="Mock Camera (/)")).to_be_visible()
+
+    context.close()
+
+
+def test_traefik_auth_and_webhook_routing(browser, traefik_ui_server):
+    """Verify Traefik blocks unauthenticated UI calls while allowing /webhook/reolink."""
+    domain_https = traefik_ui_server["domain_https"]
+    domain_http = traefik_ui_server["domain_http"]
+
+    # 1. HTTP on DOMAIN_NAME redirects 308/301 to HTTPS
+    ctx_http = browser.new_context(ignore_https_errors=True)
+    resp_http = ctx_http.request.get(f"{domain_http}/", max_redirects=0)
+    assert resp_http.status in (301, 308)
+    assert resp_http.headers["location"].startswith("https://iwatch.local.test/")
+    ctx_http.close()
+
+    # 2. Unauthenticated UI request is rejected by oauth2-auth forwardAuth
+    ctx_unauth = browser.new_context(
+        ignore_https_errors=True,
+        extra_http_headers={"X-Test-Unauth": "1"},
+    )
+    unauth_resp = ctx_unauth.request.post(f"{domain_https}/ui/lock")
+    assert unauth_resp.status == 401
+
+    # 3. Webhook on DOMAIN_NAME bypasses oauth2-auth and hits FastAPI secret check
+    webhook_resp = ctx_unauth.request.post(
+        f"{domain_https}/webhook/reolink",
+        data={"alarm": {"type": "ANIMAL"}},
+    )
+    assert webhook_resp.status == 401
+    assert "Invalid webhook secret" in webhook_resp.text()
+    ctx_unauth.close()

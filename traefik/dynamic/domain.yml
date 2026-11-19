@@ -7,7 +7,7 @@ http:
       priority: 600
       service: oauth2-proxy-svc
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'
 
     domain-dashboard:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
@@ -19,7 +19,7 @@ http:
         - dashboard-redirect
       service: api@internal
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'
 
     domain-cat-cam-1-flv:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/flv`)'
@@ -28,7 +28,7 @@ http:
       priority: 450
       service: cat-cam-1-flv-svc
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'
 
     domain-cat-cam-1:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/cctv1`)'
@@ -41,7 +41,7 @@ http:
         - cam-1-strip
       service: cat-cam-1-svc
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'
 
     domain-cat-cam-1-assets:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
@@ -52,7 +52,7 @@ http:
         - oauth2-auth
       service: cat-cam-1-svc
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'
 
     domain-iwatch-ui:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
@@ -63,7 +63,7 @@ http:
         - oauth2-auth
       service: iwatch-ulock-svc
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'
 
     domain-iwatch-ublock:
       rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
@@ -72,4 +72,4 @@ http:
       priority: 300
       service: iwatch-ulock-svc
       tls:
-        certResolver: letsencrypt
+        certResolver: '{{ env "CERT_RESOLVER" }}'

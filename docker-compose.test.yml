@@ -1,4 +1,4 @@
-# docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from sut
+# docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from sut
 ---
 services:
   sut:
@@ -6,12 +6,98 @@ services:
       context: .
       dockerfile: Dockerfile.test
     ipc: host
+    depends_on:
+      - traefik
+      - oauth2-proxy
+      - mock-camera
     environment:
       LOG_LEVEL: DEBUG
       DATA_DIR: /tmp/test-data
       MODEL_WEIGHTS_PATH: /tmp/test-data/nonexistent_weights
       SERIAL_PORT: /dev/null
+      TEST_DOMAIN_NAME: iwatch.local.test
+      TEST_BALENA_HOST: test-device.balena-devices.com
     volumes:
       - .:/app
     command: >
       pytest -v --tb=short -o asyncio_default_fixture_loop_scope=function tests/
+    networks:
+      test-net:
+        aliases:
+          - iwatch-ulock
+
+  traefik:
+    build:
+      context: ./traefik
+    command:
+      - "--api.dashboard=true"
+      - "--certificatesresolvers.letsencrypt.acme.caserver=https://127.0.0.1:14000/dir"
+      - "--certificatesresolvers.letsencrypt.acme.email=test@example.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/tmp/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--serversTransport.insecureSkipVerify=true"
+    environment:
+      DOMAIN_NAME: iwatch.local.test
+      CAT_CAM_1: mock-camera
+      CERT_RESOLVER: ""
+    volumes:
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      test-net:
+        aliases:
+          - iwatch.local.test
+          - test-device.balena-devices.com
+
+  oauth2-proxy:
+    image: python:3.12-slim-bookworm
+    command:
+      - python3
+      - -c
+      - |
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.headers.get('X-Test-Unauth') == '1':
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header('X-Auth-Request-User', 'test-admin')
+                self.end_headers()
+            def log_message(self, *a):
+                pass
+        HTTPServer(('0.0.0.0', 4180), H).serve_forever()
+    networks:
+      - test-net
+
+  mock-camera:
+    image: python:3.12-slim-bookworm
+    command:
+      - python3
+      - -c
+      - |
+        import ssl, subprocess
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-keyout', '/tmp/k.pem', '-out', '/tmp/c.pem', '-days', '1', '-nodes', '-subj', '/CN=mock-camera'], check=True)
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html')
+                self.end_headers()
+                self.wfile.write(f'<h1>Mock Camera ({self.path})</h1>'.encode())
+            def log_message(self, *a):
+                pass
+        httpd = HTTPServer(('0.0.0.0', 443), H)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain('/tmp/c.pem', '/tmp/k.pem')
+        httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+        httpd.serve_forever()
+    networks:
+      - test-net
+
+networks:
+  test-net:

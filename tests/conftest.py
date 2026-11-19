@@ -184,3 +184,44 @@ def live_ui_server():
 
     server.should_exit = True
     thread.join(timeout=3.0)
+
+
+@pytest.fixture
+def traefik_ui_server():
+    """Run FastAPI on 0.0.0.0:8000 so the sibling Traefik container routes to it."""
+    controller = MagicMock()
+    controller.is_connected = True
+    controller.lock_until = 0.0
+    bind_admin_override_mock(controller)
+
+    state = camera_receiver.AppState(
+        controller=controller,
+        model=MagicMock(),
+        http_client=AsyncMock(),
+    )
+    camera_receiver.app.state.deps = state
+
+    config_uv = uvicorn.Config(
+        camera_receiver.app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="error",
+        lifespan="off",
+    )
+    server = uvicorn.Server(config_uv)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 5.0
+    while not server.started and time.time() < deadline:
+        time.sleep(0.02)
+
+    yield {
+        "domain_https": "https://iwatch.local.test",
+        "domain_http": "http://iwatch.local.test",
+        "balena_http": "http://test-device.balena-devices.com",
+        "state": state,
+    }
+
+    server.should_exit = True
+    thread.join(timeout=3.0)
