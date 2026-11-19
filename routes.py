@@ -3,17 +3,16 @@
 import logging
 import time
 from json.decoder import JSONDecodeError
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 # pylint: disable=import-error
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request
 
 # pylint: enable=import-error
 import config
+from evaluator import fetch_and_evaluate
+from state import AppState
 from utils import resolve_camera_url, verify_secret
-
-if TYPE_CHECKING:
-    from camera_receiver import AppState
 
 logger = logging.getLogger(config.app_name)
 
@@ -32,9 +31,6 @@ async def reolink_webhook(
     ),
 ) -> dict:
     """Handle incoming motion alert webhooks dispatched by the Reolink camera."""
-    # Lazy import avoids circular dependency and preserves monkeypatching on camera_receiver
-    import camera_receiver  # pylint: disable=import-outside-toplevel
-
     verify_secret(secret, x_webhook_secret)
 
     client_host = request.client.host if request.client else None
@@ -78,10 +74,8 @@ async def reolink_webhook(
             "camera_url": camera_base_url,
         }
 
-    deps: "AppState" = request.app.state.deps
-    background_tasks.add_task(
-        camera_receiver.fetch_and_evaluate, deps, camera_base_url, webhook_event
-    )
+    deps: AppState = request.app.state.deps
+    background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
     return {"status": "queued", "camera_url": camera_base_url}
 
 
