@@ -30,7 +30,7 @@ def test_ui_root_serves_html_and_static_assets():
     resp = client.get("/")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
-    assert "iWatch uLock" in resp.text
+    assert "onlyCat(s)" in resp.text
     assert "/static/logo.png" in resp.text
     assert "/static/app.js" in resp.text
 

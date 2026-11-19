@@ -36,7 +36,7 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     page.goto(f"{base_url}/", wait_until="networkidle")
 
     # 1. Verify header, logo, initial badge, and all 4 buttons are visible
-    expect(page.get_by_role("heading", name="iWatch uLock")).to_be_visible()
+    expect(page.get_by_role("heading", name="onlyCat(s)")).to_be_visible()
     expect(page.locator("img[src='/static/logo.png']")).to_be_visible()
     expect(page.locator("#status-text")).to_have_text("Unlocked")
 
@@ -111,7 +111,7 @@ def test_traefik_routes_ui_and_camera_end_to_end(
 
     # 1. Load UI through Traefik
     page.goto(f"{base_url}/", wait_until="networkidle")
-    expect(page.get_by_role("heading", name="iWatch uLock")).to_be_visible()
+    expect(page.get_by_role("heading", name="onlyCat(s)")).to_be_visible()
 
     # 2. Lock & Unlock buttons traverse Traefik -> oauth2-auth -> FastAPI
     page.locator("#btn-lock").click()
