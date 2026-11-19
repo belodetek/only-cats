@@ -200,15 +200,22 @@ def _session_traefik_uvicorn():
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
+    target_host = socket.gethostbyname("iwatch-ulock")
     deadline = time.time() + 10.0
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", 8000), timeout=0.2):
-                break
+            with socket.create_connection((target_host, 8000), timeout=0.2) as sock:
+                sock.sendall(
+                    b"GET /openapi.json HTTP/1.1\r\nHost: iwatch-ulock\r\nConnection: close\r\n\r\n"
+                )
+                if b"200 OK" in sock.recv(64):
+                    break
         except OSError:
             time.sleep(0.05)
     else:
-        raise RuntimeError("Uvicorn test server failed to bind port 8000 within 10s")
+        raise RuntimeError(
+            f"Uvicorn test server failed to serve HTTP on {target_host}:8000 within 10s"
+        )
 
     yield {
         "domain_https": "https://iwatch.local.test",

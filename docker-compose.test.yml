@@ -34,13 +34,14 @@ services:
       context: ./traefik
     command:
       - "--api.dashboard=true"
-      - "--ping=true"
       - "--certificatesresolvers.letsencrypt.acme.caserver=https://127.0.0.1:14000/dir"
       - "--certificatesresolvers.letsencrypt.acme.email=test@example.com"
       - "--certificatesresolvers.letsencrypt.acme.storage=/tmp/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--log.level=DEBUG"
+      - "--ping=true"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--serversTransport.insecureSkipVerify=true"
