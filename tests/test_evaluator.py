@@ -3,6 +3,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 import config
@@ -202,3 +203,25 @@ async def test_fetch_and_evaluate_prey_during_admin_override_persists_and_notifi
     mock_notify.assert_awaited_once()
     assert mock_notify.call_args[1]["event_data"]["lock_engaged"] is False
     assert mock_notify.call_args[1]["event_data"]["admin_override"] == "unlocked"
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_evaluate_skips_on_uninitialized_state_or_camera_errors():
+    """Verify early returns when state is incomplete, camera returns non-200, or HTTP fails."""
+    # Uninitialized AppState
+    await evaluator.fetch_and_evaluate(AppState(), config.camera_url)
+
+    # Empty camera URL
+    state = _make_state(sample_jpeg_bytes=b"")
+    await evaluator.fetch_and_evaluate(state, "")
+    state.http_client.get.assert_not_awaited()
+
+    # Non-200 HTTP status from camera
+    state.http_client.get.return_value = MagicMock(status_code=502, content=b"")
+    await evaluator.fetch_and_evaluate(state, config.camera_url)
+    state.model.predict.assert_not_called()
+
+    # Network error from camera
+    state.http_client.get.side_effect = httpx.ConnectError("camera unreachable")
+    await evaluator.fetch_and_evaluate(state, config.camera_url)
+    state.model.predict.assert_not_called()

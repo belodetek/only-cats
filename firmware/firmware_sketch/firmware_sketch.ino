@@ -13,9 +13,9 @@
 #include <Arduino.h>
 
 #if defined(ARDUINO_XIAO_ESP32C3) || defined(ARDUINO_XIAO_ESP32S3) || defined(ARDUINO_SEEED_XIAO_C6) || defined(D2)
-const uint8_t RELAY_PIN = D2;
+const uint8_t RELAY_PIN = D0;
 #else
-const uint8_t RELAY_PIN = 2;
+const uint8_t RELAY_PIN = 0;
 #endif
 
 #if defined(LED_BUILTIN)
