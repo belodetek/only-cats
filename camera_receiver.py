@@ -325,15 +325,24 @@ async def fetch_and_evaluate(
             )
 
         if is_test or any(name in config.target_classes for name in detected_classes):
-            logger.warning(
-                ">>> %s! Activating lock for %ds...",
-                "TEST EVENT" if is_test else "PREY DETECTED",
-                int(config.lockout_duration_sec),
-            )
-            state.controller.trigger_lock(config.lockout_duration_sec)
+            lock_engaged = state.controller.trigger_lock(config.lockout_duration_sec)
+            if lock_engaged:
+                logger.warning(
+                    ">>> %s! Activating lock for %ds...",
+                    "TEST EVENT" if is_test else "PREY DETECTED",
+                    int(config.lockout_duration_sec),
+                )
+            else:
+                logger.warning(
+                    ">>> %s! Lock trigger skipped (admin override: %s).",
+                    "TEST EVENT" if is_test else "PREY DETECTED",
+                    state.controller.admin_override,
+                )
             event_data: dict[str, Any] = {
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "lockout_duration_sec": int(config.lockout_duration_sec),
+                "lock_engaged": bool(lock_engaged),
+                "admin_override": state.controller.admin_override,
                 "fetch_ms": round(fetch_ms, 1),
                 "infer_ms": round(infer_ms, 1),
                 "detections": [
@@ -353,6 +362,17 @@ async def fetch_and_evaluate(
         logger.error(
             "Unexpected error during evaluation pipeline: %s", exc, exc_info=True
         )
+
+
+def _verify_secret(secret: Optional[str], x_webhook_secret: Optional[str]) -> None:
+    """Validate shared secret from either query parameter or X-Webhook-Secret header."""
+    provided_secret = secret or x_webhook_secret
+    if (
+        not config.webhook_secret
+        or not provided_secret
+        or not hmac.compare_digest(provided_secret, config.webhook_secret)
+    ):
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
 
 @app.post("/webhook/reolink")
@@ -421,6 +441,40 @@ async def reolink_webhook(
     return {"status": "queued", "camera_url": camera_base_url}
 
 
+@app.post("/lock")
+async def force_lock(
+    request: Request,
+    secret: Optional[str] = Query(None, description="Shared secret via query param"),
+    x_webhook_secret: Optional[str] = Header(
+        None, alias="X-Webhook-Secret", description="Shared secret via header"
+    ),
+) -> dict:
+    """Force the door lock closed persistently until /unlock or power loss."""
+    _verify_secret(secret, x_webhook_secret)
+    deps: AppState = request.app.state.deps
+    if not deps.controller:
+        raise HTTPException(status_code=503, detail="Lock controller not initialized")
+    deps.controller.admin_lock()
+    return {"status": "locked", "admin_override": "locked"}
+
+
+@app.post("/unlock")
+async def force_unlock(
+    request: Request,
+    secret: Optional[str] = Query(None, description="Shared secret via query param"),
+    x_webhook_secret: Optional[str] = Header(
+        None, alias="X-Webhook-Secret", description="Shared secret via header"
+    ),
+) -> dict:
+    """Force the door lock open persistently until /lock or power loss."""
+    _verify_secret(secret, x_webhook_secret)
+    deps: AppState = request.app.state.deps
+    if not deps.controller:
+        raise HTTPException(status_code=503, detail="Lock controller not initialized")
+    deps.controller.admin_unlock()
+    return {"status": "unlocked", "admin_override": "unlocked"}
+
+
 @app.get("/health")
 async def health(request: Request) -> dict:
     """Expose container health check metrics for Docker daemon and monitoring."""
@@ -431,13 +485,25 @@ async def health(request: Request) -> dict:
     now = time.time()
     is_serial_ok = bool(controller and controller.is_connected)
     is_model_loaded = model is not None
-    is_lock_active = bool(controller and now < controller.lock_until)
-    remaining_lockout = max(0.0, controller.lock_until - now) if controller else 0.0
+    admin_override = controller.admin_override if controller else None
+    is_lock_active = bool(
+        controller
+        and (
+            admin_override == "locked"
+            or (admin_override is None and now < controller.lock_until)
+        )
+    )
+    remaining_lockout = (
+        max(0.0, controller.lock_until - now)
+        if controller and admin_override is None
+        else 0.0
+    )
 
     return {
         "status": "healthy",
         "serial_connected": is_serial_ok,
         "model_loaded": is_model_loaded,
         "lock_engaged": is_lock_active,
+        "admin_override": admin_override,
         "lockout_remaining_seconds": round(remaining_lockout, 1),
     }

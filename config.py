@@ -10,7 +10,7 @@ app_name = os.getenv("APP_NAME", "iwatch-ulock")
 # Reolink camera settings
 # 1. enable HTTPS in the mobile app
 # 2. turn off "Enable UID" under Network/Advanced for privacy (disables mobile app access)
-# 3. Surveillance/push: set Webhook URL
+# 3. Surveillance/push: set Webhook URL on 'ANIMAL' events
 #    e.g. http://<fast-api-ip-host-or-fqdn>:8000/webhook/reolink?secret={{WEBHOOK_SECRET}}
 camera_url = os.getenv(
     "CAMERA_URL"
@@ -27,6 +27,7 @@ camera_networks = {
     if item.strip()
 }
 webhook_secret = os.getenv("WEBHOOK_SECRET")
+# on top of Reolink webhook event filtering
 allowed_alarm_types: set[str] = {
     item.strip().upper()
     for item in os.getenv("ALLOWED_ALARM_TYPES", "ANIMAL,TEST").split(",")

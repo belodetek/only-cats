@@ -1,4 +1,4 @@
-# pylint: disable=broad-exception-caught,too-many-instance-attributes
+# pylint: disable=broad-exception-caught,too-many-instance-attributes,too-many-branches
 """USB serial controller for the ESP32 door lock and lockout timer."""
 
 import logging
@@ -19,10 +19,11 @@ logger = logging.getLogger(config.app_name)
 
 @dataclass
 class LockoutState:
-    """Tracks active lockout timer and expiration callback state."""
+    """Tracks active lockout timer, admin override, and expiration callback state."""
 
     until: float = 0.0
     pending_dispense: bool = False
+    admin_override: Optional[str] = None  # None | "locked" | "unlocked"
     on_expired: Optional[Callable[[], None]] = None
 
 
@@ -43,6 +44,11 @@ class ESP32SerialController:
     def lock_until(self) -> float:
         """Return the Unix timestamp when the current lockout expires."""
         return self.state.until
+
+    @property
+    def admin_override(self) -> Optional[str]:
+        """Return the active admin override ('locked', 'unlocked', or None)."""
+        return self.state.admin_override
 
     @property
     def is_connected(self) -> bool:
@@ -137,6 +143,24 @@ class ESP32SerialController:
         with self.lock:
             return self._write_locked(b"P")
 
+    def admin_lock(self) -> None:
+        """Force the lock closed persistently until /unlock or power cycle."""
+        with self.lock:
+            self.state.admin_override = "locked"
+            self.state.until = 0.0
+            self.state.pending_dispense = False
+            self._write_locked(b"L")
+            logger.warning(">>> ADMIN OVERRIDE: Door forced LOCKED.")
+
+    def admin_unlock(self) -> None:
+        """Force the lock open persistently until /lock or power cycle."""
+        with self.lock:
+            self.state.admin_override = "unlocked"
+            self.state.until = 0.0
+            self.state.pending_dispense = False
+            self._write_locked(b"U")
+            logger.warning(">>> ADMIN OVERRIDE: Door forced UNLOCKED.")
+
     def start_worker(self) -> None:
         """Spawn the background thread that manages reconnection and lock keepalives."""
         if self.thread and self.thread.is_alive():
@@ -158,7 +182,10 @@ class ESP32SerialController:
                 if self.connect():
                     reconnect_delay = config.serial_reconnect_base_delay_sec
                     with self.lock:
-                        if time.time() < self.state.until:
+                        if self.state.admin_override == "locked" or (
+                            self.state.admin_override is None
+                            and time.time() < self.state.until
+                        ):
                             self._write_locked(b"L")
                 else:
                     self._stop_event.wait(reconnect_delay)
@@ -170,7 +197,16 @@ class ESP32SerialController:
             now = time.time()
             should_dispense = False
             with self.lock:
-                if now < self.state.until:
+                if self.state.admin_override == "locked":
+                    if self._write_locked(b"L"):
+                        logger.debug("Admin lock keepalive sent: 'L'")
+                elif self.state.admin_override == "unlocked":
+                    try:
+                        self._drain_acks_locked()
+                    except (serial.SerialException, OSError) as exc:
+                        logger.error("Serial read failed (will reconnect): %s", exc)
+                        self._disconnect_locked()
+                elif now < self.state.until:
                     if self._write_locked(b"L"):
                         logger.debug("Lock keepalive sent: 'L'")
                 elif self.state.pending_dispense:
@@ -196,12 +232,19 @@ class ESP32SerialController:
         self,
         duration: Optional[float] = None,
         dispense_on_expire: bool = True,
-    ) -> None:
-        """Engage the lock and send 'L' for the specified duration."""
+    ) -> bool:
+        """Engage the lock for duration unless an admin override is active."""
         effective_duration = (
             config.lockout_duration_sec if duration is None else duration
         )
         with self.lock:
+            if self.state.admin_override is not None:
+                logger.info(
+                    "Prey lockout skipped (no-op): admin override '%s' is active.",
+                    self.state.admin_override,
+                )
+                return False
+
             new_target = time.time() + effective_duration
             self.state.until = max(self.state.until, new_target)
             if dispense_on_expire:
@@ -212,6 +255,7 @@ class ESP32SerialController:
                 effective_duration,
                 time.strftime("%H:%M:%S", time.localtime(self.state.until)),
             )
+            return True
 
     def close(self) -> None:
         """Stop background worker and terminate serial connection."""
