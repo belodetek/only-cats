@@ -44,9 +44,10 @@ RUN pip install --no-cache-dir --no-index --no-deps --find-links=/wheels /wheels
     && find /usr/local/lib/python3.12/site-packages/ -type d -name "test" -exec rm -rf {} + 2>/dev/null || true \
     && find /usr/local/lib/python3.12/site-packages/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
-COPY *.py training/runs/latest/weights ./
-
-COPY firmware/bin/firmware_sketch.ino.bin flash/
+COPY *.py ./
+COPY static/ ./static/
+COPY training/runs/latest/weights/ ./
+COPY firmware/bin/firmware_sketch.ino.bin ./flash/
 
 EXPOSE 8000
 

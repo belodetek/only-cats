@@ -1,14 +1,19 @@
 # pylint: disable=import-error,too-many-positional-arguments,too-many-arguments
-"""Shared pytest fixtures for iwatch-ulock unit tests."""
+"""Shared pytest fixtures for iwatch-ulock unit and browser tests."""
 
 import ipaddress
+import socket
+import threading
+import time
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import cv2
 import numpy as np
 import pytest
+import uvicorn
 
+import camera_receiver
 import config
 
 
@@ -138,3 +143,44 @@ def assert_admin_lock_unlock_flow(
     health_unlocked = client.get("/health").json()
     assert health_unlocked["lock_engaged"] is False
     assert health_unlocked["admin_override"] == "unlocked"
+
+
+@pytest.fixture
+def live_ui_server():
+    """Run FastAPI app with mocked hardware state on an ephemeral localhost port."""
+    controller = MagicMock()
+    controller.is_connected = True
+    controller.lock_until = 0.0
+    bind_admin_override_mock(controller)
+
+    state = camera_receiver.AppState(
+        controller=controller,
+        model=MagicMock(),
+        http_client=AsyncMock(),
+    )
+    camera_receiver.app.state.deps = state
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+
+    config_uv = uvicorn.Config(
+        camera_receiver.app,
+        host="127.0.0.1",
+        port=port,
+        log_level="error",
+        lifespan="off",
+    )
+    server = uvicorn.Server(config_uv)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    base_url = f"http://127.0.0.1:{port}"
+    deadline = time.time() + 5.0
+    while not server.started and time.time() < deadline:
+        time.sleep(0.02)
+
+    yield base_url, state
+
+    server.should_exit = True
+    thread.join(timeout=3.0)

@@ -2,16 +2,16 @@
 ---
 services:
   sut:
-    build: .
-    command: >
-      sh -c "pip install --upgrade pip
-             pip install --no-cache-dir pytest pytest-asyncio httpx2
-             pytest -v --tb=short tests/"
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    ipc: host
     environment:
       LOG_LEVEL: DEBUG
       DATA_DIR: /tmp/test-data
       MODEL_WEIGHTS_PATH: /tmp/test-data/nonexistent_weights
       SERIAL_PORT: /dev/null
-      PIP_ROOT_USER_ACTION: ignore
     volumes:
       - .:/app
+    command: >
+      pytest -v --tb=short -o asyncio_default_fixture_loop_scope=function tests/

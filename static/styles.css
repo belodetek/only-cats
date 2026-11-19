@@ -4,6 +4,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.hidden {
+  display: none;
+}
+
 .action-btn {
   transition: transform 0.12s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
