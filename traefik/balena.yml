@@ -10,17 +10,15 @@ http:
         - redirect-scheme-https
       service: noop@internal
 
-    oauth2-proxy:
-      rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Host(`{{ env "DOMAIN_NAME" }}`)) && PathPrefix(`/oauth2`)'
+    # --- Balena Public URL (*.balena-devices.com) routers on HTTP `web` (TLS terminated by balena-proxy) ---
+    balena-oauth2-proxy:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/oauth2`)'
       entryPoints:
         - web
-        - websecure
       priority: 600
       middlewares:
         - balena-https-proto
       service: oauth2-proxy-svc
-      tls:
-        certResolver: letsencrypt
 
     dashboard:
       rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
@@ -33,23 +31,19 @@ http:
         - dashboard-redirect
       service: api@internal
 
-    cat-cam-1-flv:
-      rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Host(`{{ env "DOMAIN_NAME" }}`)) && PathPrefix(`/flv`)'
+    balena-cat-cam-1-flv:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/flv`)'
       entryPoints:
         - web
-        - websecure
       priority: 450
       middlewares:
         - balena-https-proto
       service: cat-cam-1-flv-svc
-      tls:
-        certResolver: letsencrypt
 
-    cat-cam-1:
-      rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Host(`{{ env "DOMAIN_NAME" }}`)) && PathPrefix(`/cctv1`)'
+    balena-cat-cam-1:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && PathPrefix(`/cctv1`)'
       entryPoints:
         - web
-        - websecure
       priority: 400
       middlewares:
         - balena-https-proto
@@ -57,17 +51,65 @@ http:
         - cam-1-redirect
         - cam-1-strip
       service: cat-cam-1-svc
-      tls:
-        certResolver: letsencrypt
 
-    cat-cam-1-assets:
-      rule: '(HostRegexp(`^.+\.balena-devices\.com$`) || Host(`{{ env "DOMAIN_NAME" }}`)) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
+    balena-cat-cam-1-assets:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
       entryPoints:
         - web
-        - websecure
       priority: 400
       middlewares:
         - balena-https-proto
+        - oauth2-auth
+      service: cat-cam-1-svc
+
+    balena-iwatch-ui:
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
+      entryPoints:
+        - web
+      priority: 350
+      middlewares:
+        - balena-https-proto
+        - oauth2-auth
+      service: iwatch-ulock-svc
+
+    # --- Custom DOMAIN_NAME routers on HTTPS `websecure` (Let's Encrypt TLS) ---
+    domain-oauth2-proxy:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/oauth2`)'
+      entryPoints:
+        - websecure
+      priority: 600
+      service: oauth2-proxy-svc
+      tls:
+        certResolver: letsencrypt
+
+    domain-cat-cam-1-flv:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/flv`)'
+      entryPoints:
+        - websecure
+      priority: 450
+      service: cat-cam-1-flv-svc
+      tls:
+        certResolver: letsencrypt
+
+    domain-cat-cam-1:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/cctv1`)'
+      entryPoints:
+        - websecure
+      priority: 400
+      middlewares:
+        - oauth2-auth
+        - cam-1-redirect
+        - cam-1-strip
+      service: cat-cam-1-svc
+      tls:
+        certResolver: letsencrypt
+
+    domain-cat-cam-1-assets:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
+      entryPoints:
+        - websecure
+      priority: 400
+      middlewares:
         - oauth2-auth
       service: cat-cam-1-svc
       tls:
@@ -92,61 +134,3 @@ http:
       service: iwatch-ulock-svc
       tls:
         certResolver: letsencrypt
-
-  middlewares:
-    oauth2-auth:
-      forwardAuth:
-        address: http://oauth2-proxy:4180/
-        trustForwardHeader: true
-        authResponseHeaders:
-          - X-Auth-Request-User
-          - X-Auth-Request-Email
-          - Authorization
-
-    redirect-scheme-https:
-      redirectScheme:
-        scheme: https
-        permanent: true
-
-    balena-https-proto:
-      headers:
-        customRequestHeaders:
-          X-Forwarded-Proto: https
-
-    dashboard-redirect:
-      redirectRegex:
-        regex: '^(https?://[^/]+/dashboard)$'
-        replacement: '${1}/'
-
-    cam-1-redirect:
-      redirectRegex:
-        regex: '^(https?://[^/]+/cctv1)$'
-        replacement: '${1}/'
-
-    cam-1-strip:
-      stripPrefix:
-        prefixes:
-          - /cctv1
-
-  services:
-    oauth2-proxy-svc:
-      loadBalancer:
-        servers:
-          - url: http://oauth2-proxy:4180
-
-    cat-cam-1-svc:
-      loadBalancer:
-        servers:
-          - url: https://{{ env "CAT_CAM_1" }}:443
-
-    cat-cam-1-flv-svc:
-      loadBalancer:
-        responseForwarding:
-          flushInterval: -1
-        servers:
-          - url: https://{{ env "CAT_CAM_1" }}:443
-
-    iwatch-ulock-svc:
-      loadBalancer:
-        servers:
-          - url: http://iwatch-ulock:8000
