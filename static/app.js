@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnUnlock = document.getElementById("btn-unlock");
   const btnInfo = document.getElementById("btn-info");
   const btnCamera = document.getElementById("btn-camera");
+  const btnDispenser = document.getElementById("btn-dispenser");
   const btnCloseInfo = document.getElementById("btn-close-info");
 
   const statusDot = document.getElementById("status-dot");
@@ -39,6 +40,31 @@ document.addEventListener("DOMContentLoaded", () => {
         health.admin_override === "unlocked" ? "Unlocked (Admin)" : "Unlocked";
     }
   }
+
+  async function loadUiConfig() {
+    if (!btnDispenser) {
+      return;
+    }
+    try {
+      const resp = await fetch("/ui/config", { cache: "no-store" });
+      if (!resp.ok) {
+        return;
+      }
+      const cfg = await resp.json();
+      if (cfg.dispenser_url) {
+        btnDispenser.classList.remove("hidden");
+        btnDispenser.addEventListener("click", () => {
+          window.location.assign(cfg.dispenser_url);
+        });
+      }
+    } catch (_err) {
+      // Leave dispenser button hidden if config cannot be loaded
+    }
+  }
+
+  // Initial status & config fetch
+  loadUiConfig();
+  fetchHealth(false);
 
   async function fetchHealth(revealPanel = false) {
     try {
@@ -108,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   btnCamera.addEventListener("click", () => {
-    window.location.assign("/cctv1");
+    window.location.assign("/cctv1/");
   });
 
   // Initial status fetch

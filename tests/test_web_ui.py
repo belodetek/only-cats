@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 import camera_receiver
+import config
 from tests.conftest import assert_admin_lock_unlock_flow, bind_admin_override_mock
 
 
@@ -58,3 +59,17 @@ def test_ui_lock_and_unlock_endpoints():
         lock_url="/ui/lock",
         unlock_url="/ui/unlock",
     )
+
+
+def test_ui_config_returns_dispenser_url(monkeypatch):
+    """Verify /ui/config exposes configured dispenser_url without hardcoding."""
+    client = TestClient(camera_receiver.app)
+
+    resp_default = client.get("/ui/config")
+    assert resp_default.status_code == 200
+    assert resp_default.json() == {"dispenser_url": "https://dispenser.local.test/"}
+
+    monkeypatch.setattr(config, "dispenser_url", "")
+    resp_empty = client.get("/ui/config")
+    assert resp_empty.status_code == 200
+    assert resp_empty.json() == {"dispenser_url": ""}

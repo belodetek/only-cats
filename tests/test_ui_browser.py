@@ -4,6 +4,8 @@
 import pytest
 from playwright.sync_api import Page, expect
 
+import config
+
 
 def _stub_external_cdns(page: Page, base_url: str) -> None:
     """Fulfill external CDN scripts immediately so tests work offline and deterministically."""
@@ -76,13 +78,13 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
 
 
 def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
-    """Verify clicking the Camera button redirects the browser to /cctv1."""
+    """Verify clicking the Camera button redirects the browser to /cctv1/."""
     base_url, _ = live_ui_server
     _stub_external_cdns(page, base_url)
 
-    # Intercept /cctv1 navigation target since Traefik handles /cctv1 in production
+    # Intercept /cctv1/ navigation target since Traefik handles /cctv1 in production
     page.route(
-        f"{base_url}/cctv1*",
+        f"{base_url}/cctv1**",
         lambda route: route.fulfill(
             status=200,
             content_type="text/html",
@@ -93,7 +95,7 @@ def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.locator("#btn-camera").click()
 
-    expect(page).to_have_url(f"{base_url}/cctv1")
+    expect(page).to_have_url(f"{base_url}/cctv1/")
     expect(page.get_by_role("heading", name="CCTV1 Stream")).to_be_visible()
 
 
@@ -158,3 +160,28 @@ def test_traefik_auth_and_webhook_routing(browser, traefik_ui_server):
     assert webhook_resp.status == 401
     assert "Invalid webhook secret" in webhook_resp.text()
     ctx_unauth.close()
+
+
+def test_dispenser_button_visibility_and_redirect(page, live_ui_server, monkeypatch):
+    """Verify Pret-a-Manger button redirects when configured and hides when unset."""
+    base_url, _ = live_ui_server
+    target_url = config.dispenser_url
+
+    page.route(
+        f"{target_url}**",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/html",
+            body="<h1>Pret-a-Manger Dispenser</h1>",
+        ),
+    )
+
+    page.goto(base_url, wait_until="networkidle")
+    dispenser_btn = page.get_by_role("button", name="Pret-a-Manger")
+    expect(dispenser_btn).to_be_visible()
+    dispenser_btn.click()
+    expect(page).to_have_url(target_url)
+
+    monkeypatch.setattr(config, "dispenser_url", "")
+    page.goto(base_url, wait_until="networkidle")
+    expect(dispenser_btn).to_be_hidden()

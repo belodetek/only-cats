@@ -12,7 +12,7 @@ http:
   middlewares:
     oauth2-auth:
       forwardAuth:
-        address: http://oauth2-proxy:4180/
+        address: http://oauth2-proxy:4180/oauth2/auth
         trustForwardHeader: true
         authResponseHeaders:
           - Authorization
@@ -32,13 +32,13 @@ http:
 
     dashboard-redirect:
       redirectRegex:
-        regex: '^(https?://[^/]+/dashboard)$'
-        replacement: '${1}/'
+        regex: '^https?://([^/]+/dashboard)$'
+        replacement: 'https://${1}/'
 
     cam-1-redirect:
       redirectRegex:
-        regex: '^(https?://[^/]+/cctv1)$'
-        replacement: '${1}/'
+        regex: '^https?://([^/]+/cctv1)$'
+        replacement: 'https://${1}/'
 
     cam-1-strip:
       stripPrefix:

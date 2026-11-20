@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 # pylint: enable=import-error
+import config
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 INDEX_HTML = STATIC_DIR / "index.html"
@@ -18,6 +19,12 @@ router = APIRouter(tags=["web-ui"])
 async def ui_root() -> FileResponse:
     """Serve the responsive web control interface at root (/)."""
     return FileResponse(INDEX_HTML)
+
+
+@router.get("/ui/config")
+async def get_ui_config() -> dict[str, str]:
+    """Expose non-secret UI configuration values to the frontend."""
+    return {"dispenser_url": config.dispenser_url}
 
 
 @router.post("/ui/lock")
