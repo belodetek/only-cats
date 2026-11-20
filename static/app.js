@@ -130,9 +130,15 @@ document.addEventListener("DOMContentLoaded", () => {
       if (revealPanel || !healthPanel.classList.contains("hidden")) {
         const espConnected = Boolean(data.serial_connected);
         const serviceHealthy = espConnected && data.status === "healthy";
-        const fwLabel = fw.version
+        const fwMismatch = Boolean(
+          fw.version && fw.local_version && fw.version !== fw.local_version
+        );
+        const fwBaseLabel = fw.version
           ? `${fw.version}${fw.sha256 ? ` (${fw.sha256})` : ""}`
           : "Unknown";
+        const fwLabel = fwMismatch
+          ? `${fwBaseLabel} (local: ${fw.local_version})`
+          : fwBaseLabel;
         const rows = [
           [
             "Service Status",
@@ -147,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
           [
             "ESP32 Firmware",
             fwLabel,
-            "text-slate-100",
+            fwMismatch ? "text-amber-400" : "text-slate-100",
           ],
           ["YOLO Model", data.model_loaded ? "Loaded" : "Missing", "text-slate-100"],
           ["Lock Engaged", data.lock_engaged ? "Yes (Closed)" : "No (Open)", "text-slate-100"],

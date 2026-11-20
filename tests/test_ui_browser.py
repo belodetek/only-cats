@@ -259,3 +259,31 @@ def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
         .nth(1)
     )
     expect(fw_cell).to_have_text("a1b2c3d (deadbeef)")
+
+
+def test_ui_warns_on_esp32_firmware_version_mismatch(page: Page, live_ui_server):
+    """Verify ESP32 Firmware health cell turns amber when chip and local versions differ."""
+    base_url, _ = live_ui_server
+    _stub_external_cdns(page, base_url)
+    page.route(
+        f"{base_url}/health",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"status":"healthy","serial_connected":true,"model_loaded":true,'
+            '"lock_engaged":false,"admin_override":null,"lockout_remaining_seconds":0.0,'
+            '"esp32_firmware":{"version":"old1111","built":"Nov 20 2026 12:00:00",'
+            '"sha256":"deadbeef","local_version":"new2222"}}',
+        ),
+    )
+
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.locator("#btn-info").click()
+
+    fw_cell = (
+        page.locator("#health-grid > div", has_text="ESP32 Firmware")
+        .locator("div")
+        .nth(1)
+    )
+    expect(fw_cell).to_have_text("old1111 (deadbeef) (local: new2222)")
+    expect(fw_cell).to_have_class(re.compile(r"text-amber-400"))
