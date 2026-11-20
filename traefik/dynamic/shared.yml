@@ -14,6 +14,7 @@ http:
       forwardAuth:
         address: http://oauth2-proxy:4180/oauth2/auth
         trustForwardHeader: true
+        maxResponseBodySize: 1048576
         authResponseHeaders:
           - Authorization
           - X-Auth-Request-Access-Token
