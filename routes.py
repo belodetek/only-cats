@@ -137,8 +137,8 @@ async def health(request: Request) -> dict:
         else 0.0
     )
 
-    chip_desc = getattr(request.app.state, "esp32_chip_desc", None)
-    local_desc = getattr(request.app.state, "esp32_local_desc", None)
+    chip_desc = getattr(deps, "esp32_chip_desc", None)
+    local_desc = getattr(deps, "esp32_local_desc", None)
 
     return {
         "status": "healthy",

@@ -58,6 +58,9 @@ async def lifespan(app_instance: FastAPI):
     )
     state.esp32_chip_desc = chip_desc
     state.esp32_local_desc = local_desc
+    app.state.deps = state
+    app.state.esp32_chip_desc = chip_desc
+    app.state.esp32_local_desc = local_desc
 
     state.controller = ESP32SerialController(config.serial_port, config.baud_rate)
     state.controller.connect()

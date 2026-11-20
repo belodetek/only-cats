@@ -12,6 +12,8 @@
 * [24VDC solenoid lock NO]
 * 1N4007 diode
 * 2200uF 50V electrolytic capacitor
+* PN2222A NPN transistor
+* 1.1kΩ 0.5W resistor
 * Good quality, democratically priced and sustainably sourced 24VDC power supply
 * Intel NUC or compatible AARCH64/AMD64 compute
 
