@@ -22,13 +22,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const footerRepoLink = document.getElementById("footer-repo-link");
   const currentYear = new Date().getFullYear();
 
-  function renderFooterMeta(version = "", repoUrl = "") {
+  const footerState = {
+    appVersion: "",
+    firmwareVersion: "",
+    repoUrl: "",
+  };
+
+  function renderFooterMeta() {
     if (footerMeta) {
-      const versionPrefix = version ? `v${version} · ` : "";
-      footerMeta.textContent = `${versionPrefix}© belodetek ${currentYear}`;
+      const parts = [];
+      if (footerState.appVersion) {
+        parts.push(`v${footerState.appVersion}`);
+      }
+      if (footerState.firmwareVersion) {
+        parts.push(`fw ${footerState.firmwareVersion}`);
+      }
+      parts.push(`© belodetek ${currentYear}`);
+      footerMeta.textContent = parts.join(" · ");
     }
-    if (footerRepoLink && repoUrl) {
-      footerRepoLink.href = repoUrl;
+    if (footerRepoLink && footerState.repoUrl) {
+      footerRepoLink.href = footerState.repoUrl;
       footerRepoLink.classList.remove("hidden");
     }
   }
@@ -88,7 +101,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const cfg = await resp.json();
-      renderFooterMeta(cfg.app_version, cfg.repo_url);
+      footerState.appVersion = cfg.app_version || "";
+      footerState.repoUrl = cfg.repo_url || "";
+      renderFooterMeta();
       if (cfg.dispenser_url) {
         btnDispenser.classList.remove("hidden");
         btnDispenser.addEventListener("click", () => {
@@ -107,11 +122,17 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(`HTTP ${resp.status}`);
       }
       const data = await resp.json();
+      const fw = data.esp32_firmware || {};
+      footerState.firmwareVersion = fw.version || "";
+      renderFooterMeta();
       updateStatusBadge(data);
 
       if (revealPanel || !healthPanel.classList.contains("hidden")) {
         const espConnected = Boolean(data.serial_connected);
         const serviceHealthy = espConnected && data.status === "healthy";
+        const fwLabel = fw.version
+          ? `${fw.version}${fw.sha256 ? ` (${fw.sha256})` : ""}`
+          : "Unknown";
         const rows = [
           [
             "Service Status",
@@ -122,6 +143,11 @@ document.addEventListener("DOMContentLoaded", () => {
             "ESP32 Serial",
             espConnected ? "Connected" : "Disconnected",
             espConnected ? "text-emerald-400" : "text-amber-400",
+          ],
+          [
+            "ESP32 Firmware",
+            fwLabel,
+            "text-slate-100",
           ],
           ["YOLO Model", data.model_loaded ? "Loaded" : "Missing", "text-slate-100"],
           ["Lock Engaged", data.lock_engaged ? "Yes (Closed)" : "No (Open)", "text-slate-100"],

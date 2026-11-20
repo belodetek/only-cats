@@ -137,6 +137,9 @@ async def health(request: Request) -> dict:
         else 0.0
     )
 
+    chip_desc = getattr(request.app.state, "esp32_chip_desc", None)
+    local_desc = getattr(request.app.state, "esp32_local_desc", None)
+
     return {
         "status": "healthy",
         "serial_connected": is_serial_ok,
@@ -144,4 +147,14 @@ async def health(request: Request) -> dict:
         "lock_engaged": is_lock_active,
         "admin_override": admin_override,
         "lockout_remaining_seconds": round(remaining_lockout, 1),
+        "esp32_firmware": {
+            "version": chip_desc.version if chip_desc else None,
+            "built": f"{chip_desc.date} {chip_desc.time}" if chip_desc else None,
+            "sha256": (
+                chip_desc.app_elf_sha256[:4].hex()
+                if chip_desc and chip_desc.app_elf_sha256
+                else None
+            ),
+            "local_version": local_desc.version if local_desc else None,
+        },
     }

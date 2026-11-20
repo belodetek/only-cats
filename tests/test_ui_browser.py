@@ -228,3 +228,34 @@ def test_esp32_disconnected_disables_controls_and_highlights_health(
     )
     expect(esp_cell).to_have_text("Disconnected")
     expect(esp_cell).to_have_class(re.compile(r"text-amber-400"))
+
+
+def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
+    """Verify Info panel renders the running ESP32 firmware short Git SHA."""
+    base_url, _ = live_ui_server
+    _stub_external_cdns(page, base_url)
+    page.route(
+        f"{base_url}/health",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"status":"healthy","serial_connected":true,"model_loaded":true,'
+            '"lock_engaged":false,"admin_override":null,"lockout_remaining_seconds":0.0,'
+            '"esp32_firmware":{"version":"a1b2c3d","built":"Nov 20 2026 12:00:00",'
+            '"sha256":"deadbeef","local_version":"a1b2c3d"}}',
+        ),
+    )
+
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.locator("#btn-info").click()
+
+    expect(page.locator("#footer-meta")).to_have_text(
+        "v0.0.0 · fw a1b2c3d · © belodetek 2026"
+    )
+    page.locator("#btn-info").click()
+    fw_cell = (
+        page.locator("#health-grid > div", has_text="ESP32 Firmware")
+        .locator("div")
+        .nth(1)
+    )
+    expect(fw_cell).to_have_text("a1b2c3d (deadbeef)")

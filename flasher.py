@@ -169,14 +169,15 @@ def auto_flash_esp32_if_updated(
     chip: str = "esp32c6",
     baud: int = 460800,
     bin_path: str = DEFAULT_BIN_PATH,
-) -> bool:
+) -> tuple[bool, Optional[AppDescriptor], Optional[AppDescriptor]]:
     """Compare on-chip descriptor with local binary; flash on mismatch or missing image.
 
-    Returns True if the chip was flashed, False if already up-to-date or skipped.
+    Returns (flashed, active_chip_descriptor, local_binary_descriptor).
     """
     if not os.path.exists(bin_path):
         logger.info("No firmware binary found at %s. Skipping auto-flash.", bin_path)
-        return False
+        chip_desc = read_chip_descriptor(port=port, chip=chip, baud=baud)
+        return False, chip_desc, None
 
     local_desc = get_local_descriptor(bin_path)
     if not local_desc:
@@ -184,11 +185,12 @@ def auto_flash_esp32_if_updated(
             "Local file %s is not a valid ESP32 application binary (missing magic header).",
             bin_path,
         )
-        return False
+        return False, None, None
 
     logger.info(
-        "Local build info: project='%s', built=%s %s, idf=%s",
+        "Local build info: project='%s', version='%s', built=%s %s, idf=%s",
         local_desc.project_name,
+        local_desc.version,
         local_desc.date,
         local_desc.time,
         local_desc.idf_ver,
@@ -201,18 +203,18 @@ def auto_flash_esp32_if_updated(
             "No valid ESP32 application descriptor found on chip (unflashed or corrupted). "
             "Proceeding with initial flash."
         )
-        return flash_firmware(port, chip, baud, bin_path)
+        flashed = flash_firmware(port, chip, baud, bin_path)
+        return flashed, (local_desc if flashed else None), local_desc
 
     logger.info(
-        "On-chip build info: project='%s', built=%s %s, idf=%s",
+        "On-chip build info: project='%s', version='%s', built=%s %s, idf=%s",
         chip_desc.project_name,
+        chip_desc.version,
         chip_desc.date,
         chip_desc.time,
         chip_desc.idf_ver,
     )
 
-    # Compare SHA256 build hash, date, and time
-    needs_flash = False
     if local_desc.app_elf_sha256 and chip_desc.app_elf_sha256:
         needs_flash = local_desc.app_elf_sha256 != chip_desc.app_elf_sha256
     else:
@@ -224,7 +226,8 @@ def auto_flash_esp32_if_updated(
         logger.warning(
             ">>> Firmware mismatch detected between local binary and target ESP32. Updating..."
         )
-        return flash_firmware(port, chip, baud, bin_path)
+        flashed = flash_firmware(port, chip, baud, bin_path)
+        return flashed, (local_desc if flashed else chip_desc), local_desc
 
     logger.info("ESP32 on-chip firmware is identical to local build. Flashing skipped.")
-    return False
+    return False, chip_desc, local_desc

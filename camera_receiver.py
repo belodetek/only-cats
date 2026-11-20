@@ -50,12 +50,14 @@ async def lifespan(app_instance: FastAPI):
     os.makedirs(config.labels_dir, exist_ok=True)
 
     # Flash ESP32 over serial bootloader if binary has updated or chip is unprovisioned
-    auto_flash_esp32_if_updated(
+    _, chip_desc, local_desc = auto_flash_esp32_if_updated(
         port=config.serial_port,
-        chip=getattr(config, "esp_chip", "esp32c6"),
-        baud=getattr(config, "esp_flash_baud", 460800),
-        bin_path=getattr(config, "firmware_bin_path", "flash/firmware_sketch.ino.bin"),
+        chip=config.esp_chip,
+        baud=config.esp_flash_baud,
+        bin_path=config.firmware_bin_path,
     )
+    state.esp32_chip_desc = chip_desc
+    state.esp32_local_desc = local_desc
 
     state.controller = ESP32SerialController(config.serial_port, config.baud_rate)
     state.controller.connect()
