@@ -13,7 +13,18 @@
 * 1N4007 diode
 * 2200uF 50V electrolytic capacitor
 * Good quality, democratically priced and sustainably sourced 24VDC power supply
-* Intel NUC or compatible AMD64 compute
+* Intel NUC or compatible AARCH64/AMD64 compute
+
+## software composition
+
+The service includes a mobile-friendly Web Control UI, behind **Traefik** and
+authenticated via **oauth2-proxy** (GitHub OAuth) across both custom domain (`DOMAIN_NAME`)
+and balenaCloud public device URLs (`*.balena-devices.com`):
+
+- **Manual Lock / Unlock Overrides:** Force the cat-flap locked or unlocked persistently until changed or power-cycled.
+- **System Diagnostics:** Expandable drawer displaying service status.
+- **Live Camera Feed:** Reverse-proxied access to the Reolink camera web UI (`CAT_CAM_1`).
+- **Pret-a-Manger Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to link to the kibble-bot's web UI.
 
 ## camera/webhooks event architecture
 
@@ -101,15 +112,20 @@
                                      v                   v
                              +-------+-------------------+-----+
                              |        C1  (2200uF >=50V)       |
-                             |       [-] to V-, [+] to NC      |
-                             +-------+-------------------------+
+                             |       [-] to V-, [+] to NO      |
+                             +-------+-------------------+-----+
                                      |                   |
                                      v                   v
                              +-------+-------------------+-----+
                              |            D1 (1N4007)          |
-                             | anode to V-, cathode/band to NC |
+                             | anode to V-, cathode/band to NO |
                              +-------+-------------------+-----+
                                      |                   |
+                                     v                   v
+                             +-------+-------------------+-----+
+                             |        LED+resistor package     |
+                             |     cathode to V-, anode to NO  |
+                             +-------+-------------------+-----+
                                      |                   |
                                      v                   v
                              +-----------------------------------+
