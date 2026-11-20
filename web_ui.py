@@ -1,6 +1,7 @@
 """Web UI router for manual lock/unlock controls, diagnostics, and camera redirect."""
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # pylint: disable=import-error
 from fastapi import APIRouter, HTTPException, Request
@@ -24,7 +25,17 @@ async def ui_root() -> FileResponse:
 @router.get("/ui/config")
 async def get_ui_config() -> dict[str, str]:
     """Expose non-secret UI configuration values to the frontend."""
-    return {"dispenser_url": config.dispenser_url}
+    raw_url = getattr(config, "dispenser_url", "").strip()
+    if raw_url:
+        parsed = urlsplit(raw_url)
+        dispenser_url = (
+            f"{parsed.scheme}://{parsed.netloc}/"
+            if parsed.scheme and parsed.netloc
+            else raw_url
+        )
+    else:
+        dispenser_url = ""
+    return {"dispenser_url": dispenser_url}
 
 
 @router.post("/ui/lock")
