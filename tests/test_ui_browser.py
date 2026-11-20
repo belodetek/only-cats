@@ -1,6 +1,8 @@
 # pylint: disable=import-error
 """End-to-end browser tests for the Web UI using Playwright (Chromium)."""
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -185,3 +187,29 @@ def test_dispenser_button_visibility_and_redirect(page, live_ui_server, monkeypa
     monkeypatch.setattr(config, "dispenser_url", "")
     page.goto(base_url, wait_until="networkidle")
     expect(dispenser_btn).to_be_hidden()
+
+
+def test_esp32_disconnected_disables_controls_and_highlights_health(
+    page: Page, live_ui_server
+):
+    """Verify disconnected ESP32 disables lock/unlock buttons, dims open badge,
+    and yellows health."""
+    base_url, state = live_ui_server
+    state.controller.is_connected = False
+    _stub_external_cdns(page, base_url)
+
+    page.goto(f"{base_url}/", wait_until="networkidle")
+
+    expect(page.locator("#btn-lock")).to_be_disabled()
+    expect(page.locator("#btn-unlock")).to_be_disabled()
+    expect(page.locator("#status-text")).to_have_text("Disabled (Open)")
+    expect(page.locator("#status-badge")).to_have_class(re.compile(r"opacity-75"))
+
+    page.locator("#btn-info").click()
+    esp_cell = (
+        page.locator("#health-grid > div", has_text="ESP32 Serial")
+        .locator("div")
+        .nth(1)
+    )
+    expect(esp_cell).to_have_text("Disconnected")
+    expect(esp_cell).to_have_class(re.compile(r"text-amber-400"))

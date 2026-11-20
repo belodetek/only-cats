@@ -15,7 +15,7 @@ services:
       mock-camera:
         condition: service_started
     environment:
-      LOG_LEVEL: DEBUG
+      LOG_LEVEL: INFO
       DATA_DIR: /tmp/test-data
       MODEL_WEIGHTS_PATH: /tmp/test-data/nonexistent_weights
       SERIAL_PORT: /dev/null
@@ -38,7 +38,7 @@ services:
       - "--api.dashboard=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--log.level=DEBUG"
+      - "--log.level=INFO"
       - "--ping=true"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"

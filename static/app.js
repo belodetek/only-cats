@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnDispenser = document.getElementById("btn-dispenser");
   const btnCloseInfo = document.getElementById("btn-close-info");
 
+  const statusBadge = document.getElementById("status-badge");
   const statusDot = document.getElementById("status-dot");
   const statusText = document.getElementById("status-text");
   const toast = document.getElementById("toast");
@@ -29,7 +30,26 @@ document.addEventListener("DOMContentLoaded", () => {
     toast.classList.remove("hidden");
   }
 
+  function setLockControlsEnabled(enabled) {
+    btnLock.disabled = !enabled;
+    btnUnlock.disabled = !enabled;
+  }
+
   function updateStatusBadge(health) {
+    const espConnected = Boolean(health.serial_connected);
+    setLockControlsEnabled(espConnected);
+
+    if (!espConnected) {
+      statusBadge.className =
+        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900/60 border border-slate-800 text-slate-400 opacity-75";
+      statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+      statusText.textContent = "Disabled (Open)";
+      return;
+    }
+
+    statusBadge.className =
+      "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-300";
+
     if (health.lock_engaged) {
       statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse";
       statusText.textContent =
@@ -62,10 +82,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Initial status & config fetch
-  loadUiConfig();
-  fetchHealth(false);
-
   async function fetchHealth(revealPanel = false) {
     try {
       const resp = await fetch("/health", { cache: "no-store" });
@@ -76,20 +92,25 @@ document.addEventListener("DOMContentLoaded", () => {
       updateStatusBadge(data);
 
       if (revealPanel || !healthPanel.classList.contains("hidden")) {
+        const espConnected = Boolean(data.serial_connected);
         const rows = [
-          ["Service Status", data.status],
-          ["ESP32 Serial", data.serial_connected ? "Connected" : "Disconnected"],
-          ["YOLO Model", data.model_loaded ? "Loaded" : "Missing"],
-          ["Lock Engaged", data.lock_engaged ? "Yes (Closed)" : "No (Open)"],
-          ["Admin Override", data.admin_override || "None (Auto)"],
-          ["Prey Timer", `${data.lockout_remaining_seconds}s`],
+          ["Service Status", data.status, "text-slate-100"],
+          [
+            "ESP32 Serial",
+            espConnected ? "Connected" : "Disconnected",
+            espConnected ? "text-slate-100" : "text-amber-400",
+          ],
+          ["YOLO Model", data.model_loaded ? "Loaded" : "Missing", "text-slate-100"],
+          ["Lock Engaged", data.lock_engaged ? "Yes (Closed)" : "No (Open)", "text-slate-100"],
+          ["Admin Override", data.admin_override || "None (Auto)", "text-slate-100"],
+          ["Prey Timer", `${data.lockout_remaining_seconds}s`, "text-slate-100"],
         ];
         healthGrid.innerHTML = rows
           .map(
-            ([label, val]) => `
+            ([label, val, valClass]) => `
             <div class="bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2">
               <div class="text-[11px] text-slate-400">${label}</div>
-              <div class="font-medium text-slate-100">${val}</div>
+              <div class="font-medium ${valClass}">${val}</div>
             </div>`
           )
           .join("");
@@ -97,6 +118,9 @@ document.addEventListener("DOMContentLoaded", () => {
         healthPanel.classList.remove("hidden");
       }
     } catch (err) {
+      setLockControlsEnabled(false);
+      statusBadge.className =
+        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900/60 border border-slate-800 text-slate-400 opacity-75";
       statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
       statusText.textContent = "Offline";
       if (revealPanel) {
@@ -137,6 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.assign("/cctv1/");
   });
 
-  // Initial status fetch
+  // Initial status & config fetch
+  loadUiConfig();
   fetchHealth(false);
 });
