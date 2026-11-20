@@ -38,6 +38,7 @@ async def get_ui_config() -> dict[str, str]:
     return {
         "dispenser_url": dispenser_url,
         "app_version": getattr(config, "app_version", "0.0.0"),
+        "repo_url": getattr(config, "repo_url", ""),
     }
 
 

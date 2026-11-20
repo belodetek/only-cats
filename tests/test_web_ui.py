@@ -25,7 +25,7 @@ def _make_ui_state() -> camera_receiver.AppState:
 
 
 def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
-    """Verify /ui/config exposes stripped dispenser_url and balena.yml app_version."""
+    """Verify /ui/config exposes stripped dispenser_url, app_version, and repo_url."""
     client = TestClient(camera_receiver.app)
 
     parsed = urlsplit(config.dispenser_url)
@@ -36,15 +36,18 @@ def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
     assert resp_default.json() == {
         "dispenser_url": expected_root,
         "app_version": "0.0.0",
+        "repo_url": "https://github.com/belodetek/only-cats",
     }
 
     monkeypatch.setattr(config, "dispenser_url", "")
     monkeypatch.setattr(config, "app_version", "1.2.3")
+    monkeypatch.setattr(config, "repo_url", "")
     resp_custom = client.get("/ui/config")
     assert resp_custom.status_code == 200
     assert resp_custom.json() == {
         "dispenser_url": "",
         "app_version": "1.2.3",
+        "repo_url": "",
     }
 
 

@@ -87,6 +87,11 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
 
     # 6. Verify footer rendering
     expect(page.locator("#footer-meta")).to_contain_text("v0.0.0 · © belodetek 2026")
+    repo_link = page.locator("#footer-repo-link")
+    expect(repo_link).to_be_visible()
+    expect(repo_link).to_have_attribute(
+        "href", "https://github.com/belodetek/only-cats"
+    )
 
 
 def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):

@@ -6,20 +6,31 @@ import random
 from pathlib import Path
 
 
-def _read_app_version() -> str:
-    """Read the version field from balena.yml if present."""
+def _read_balena_metadata() -> tuple[str, str]:
+    """Read version and repository URL from balena.yml if present."""
+    version = "0.0.0"
+    repository_url = ""
     balena_file = Path(__file__).resolve().parent / "balena.yml"
     if balena_file.is_file():
+        in_repository = False
         for line in balena_file.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             if stripped.startswith("version:"):
-                return stripped.split(":", 1)[1].strip().strip("'\"")
-    return "0.0.0"
+                version = stripped.split(":", 1)[1].strip().strip("'\"")
+            elif stripped == "repository:":
+                in_repository = True
+            elif in_repository and stripped.startswith("url:"):
+                repository_url = stripped.split(":", 1)[1].strip().strip("'\"")
+                in_repository = False
+    return version, repository_url
 
 
 level: str = os.getenv("LOG_LEVEL", "INFO")
 app_name: str = os.getenv("APP_NAME", "iwatch-ulock")
-app_version: str = os.getenv("APP_VERSION", _read_app_version()).strip()
+_DEFAULT_VERSION, _DEFAULT_REPO_URL = _read_balena_metadata()
+app_version: str = os.getenv("APP_VERSION", _DEFAULT_VERSION).strip()
+repo_url: str = os.getenv("REPO_URL", _DEFAULT_REPO_URL).strip()
+
 
 # Reolink camera settings
 # 1. enable HTTPS in the mobile app

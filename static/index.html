@@ -111,9 +111,23 @@
     </section>
   </main>
 
-  <footer class="w-full max-w-xl text-center text-xs text-slate-500 pt-2 flex flex-col gap-1">
+  <footer class="w-full max-w-xl text-center text-xs text-slate-500 pt-2 flex flex-col gap-1.5">
     <div>Admin override persists until changed or power cycled.</div>
-    <div id="footer-meta" class="text-[11px] text-slate-600"></div>
+    <div class="flex items-center justify-center gap-2 text-[11px] text-slate-500">
+      <span id="footer-meta"></span>
+      <a
+        id="footer-repo-link"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="GitHub Repository"
+        class="hidden inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors"
+      >
+        <span aria-hidden="true">·</span>
+        <i data-lucide="github" class="w-3.5 h-3.5"></i>
+        <span>GitHub</span>
+      </a>
+    </div>
   </footer>
 
   <script src="/static/app.js"></script>
