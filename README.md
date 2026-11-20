@@ -14,7 +14,7 @@
 * 2200uF 50V electrolytic capacitor
 * PN2222A NPN transistor
 * 1.1kΩ 0.5W resistor
-* Good quality, democratically priced and sustainably sourced 24VDC power supply
+* Good quality, democratically priced and sustainably sourced V19.5+ DC power supply
 * Intel NUC or compatible AARCH64/AMD64 compute
 
 ## software composition
@@ -26,7 +26,7 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 - **Manual Lock / Unlock Overrides:** Force the cat-flap locked or unlocked persistently until changed or power-cycled.
 - **System Diagnostics:** Expandable drawer displaying service status.
 - **Live Camera Feed:** Reverse-proxied access to the Reolink camera web UI (`CAT_CAM_1`).
-- **Pret-a-Manger Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to link to the kibble-bot's web UI.
+- **[Pet-a-Manger] Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to link to the kibble-bot's web UI.
 
 ## camera/webhooks event architecture
 
@@ -147,6 +147,7 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
                                         +-----------------------------------+
 ```
 
+[Pet-a-Manger]: https://pet-a-manger.pages.dev/
 [REOLINK PoE Security Camera RLC-810A]: https://www.amazon.ca/dp/B08MQ61MKN
 [PoE injector]: https://www.amazon.ca/dp/B07PR9CBGL
 [5V single channel relay (opto-coupler) H/L trigger jumper]: https://www.aliexpress.com/item/1005004493713732.html
