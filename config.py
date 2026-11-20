@@ -3,9 +3,23 @@
 import ipaddress
 import os
 import random
+from pathlib import Path
+
+
+def _read_app_version() -> str:
+    """Read the version field from balena.yml if present."""
+    balena_file = Path(__file__).resolve().parent / "balena.yml"
+    if balena_file.is_file():
+        for line in balena_file.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("version:"):
+                return stripped.split(":", 1)[1].strip().strip("'\"")
+    return "0.0.0"
+
 
 level: str = os.getenv("LOG_LEVEL", "INFO")
 app_name: str = os.getenv("APP_NAME", "iwatch-ulock")
+app_version: str = os.getenv("APP_VERSION", _read_app_version()).strip()
 
 # Reolink camera settings
 # 1. enable HTTPS in the mobile app

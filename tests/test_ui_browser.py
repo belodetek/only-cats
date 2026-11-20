@@ -78,6 +78,9 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     page.locator("#btn-close-info").click()
     expect(page.locator("#health-panel")).to_be_hidden()
 
+    # 6. Verify footer rendering
+    expect(page.locator("#footer-meta")).to_contain_text("v0.0.0 · © belodetek 2026")
+
 
 def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
     """Verify clicking the Camera button redirects the browser to /cctv1/."""

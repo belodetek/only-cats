@@ -23,6 +23,7 @@ import config
 def _isolate_config_defaults(monkeypatch):
     """Ensure every test starts with predictable config values regardless of host/compose env."""
     monkeypatch.setattr(config, "app_name", "iwatch-ulock-test")
+    monkeypatch.setattr(config, "app_version", "0.0.0")
     monkeypatch.setattr(config, "camera_url", "https://192.168.10.108")
     monkeypatch.setattr(config, "camera_user", "test-user")
     monkeypatch.setattr(config, "camera_password", "test-password")

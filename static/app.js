@@ -10,6 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnDispenser = document.getElementById("btn-dispenser");
   const btnCloseInfo = document.getElementById("btn-close-info");
 
+  const footerMeta = document.getElementById("footer-meta");
+  const currentYear = new Date().getFullYear();
   const statusBadge = document.getElementById("status-badge");
   const statusDot = document.getElementById("status-dot");
   const statusText = document.getElementById("status-text");
@@ -17,6 +19,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const healthPanel = document.getElementById("health-panel");
   const healthGrid = document.getElementById("health-grid");
   const healthRaw = document.getElementById("health-raw");
+
+  function renderFooterMeta(version = "") {
+    if (!footerMeta) {
+      return;
+    }
+    const versionPrefix = version ? `v${version} · ` : "";
+    footerMeta.textContent = `${versionPrefix}© belodetek ${currentYear}`;
+  }
+
+  renderFooterMeta();
 
   function showToast(message, variant = "info") {
     const styles = {
@@ -71,6 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const cfg = await resp.json();
+      renderFooterMeta(cfg.app_version);
       if (cfg.dispenser_url) {
         btnDispenser.classList.remove("hidden");
         btnDispenser.addEventListener("click", () => {

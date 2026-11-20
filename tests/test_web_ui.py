@@ -2,6 +2,7 @@
 """Unit tests for web_ui.py static UI delivery and admin override controls."""
 
 from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import urlsplit
 
 from fastapi.testclient import TestClient
 
@@ -23,6 +24,30 @@ def _make_ui_state() -> camera_receiver.AppState:
     )
 
 
+def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
+    """Verify /ui/config exposes stripped dispenser_url and balena.yml app_version."""
+    client = TestClient(camera_receiver.app)
+
+    parsed = urlsplit(config.dispenser_url)
+    expected_root = f"{parsed.scheme}://{parsed.netloc}/"
+
+    resp_default = client.get("/ui/config")
+    assert resp_default.status_code == 200
+    assert resp_default.json() == {
+        "dispenser_url": expected_root,
+        "app_version": "0.0.0",
+    }
+
+    monkeypatch.setattr(config, "dispenser_url", "")
+    monkeypatch.setattr(config, "app_version", "1.2.3")
+    resp_custom = client.get("/ui/config")
+    assert resp_custom.status_code == 200
+    assert resp_custom.json() == {
+        "dispenser_url": "",
+        "app_version": "1.2.3",
+    }
+
+
 def test_ui_root_serves_html_and_static_assets():
     """Verify GET / returns the web UI HTML and /static assets are reachable."""
     camera_receiver.app.state.deps = _make_ui_state()
@@ -37,7 +62,7 @@ def test_ui_root_serves_html_and_static_assets():
 
     js_resp = client.get("/static/app.js")
     assert js_resp.status_code == 200
-    assert "/cctv1" in js_resp.text
+    assert "/cctv1/" in js_resp.text
 
     css_resp = client.get("/static/styles.css")
     assert css_resp.status_code == 200
@@ -59,17 +84,3 @@ def test_ui_lock_and_unlock_endpoints():
         lock_url="/ui/lock",
         unlock_url="/ui/unlock",
     )
-
-
-def test_ui_config_returns_dispenser_url(monkeypatch):
-    """Verify /ui/config exposes configured dispenser_url without hardcoding."""
-    client = TestClient(camera_receiver.app)
-
-    resp_default = client.get("/ui/config")
-    assert resp_default.status_code == 200
-    assert resp_default.json() == {"dispenser_url": "https://dispenser.local.test/"}
-
-    monkeypatch.setattr(config, "dispenser_url", "")
-    resp_empty = client.get("/ui/config")
-    assert resp_empty.status_code == 200
-    assert resp_empty.json() == {"dispenser_url": ""}

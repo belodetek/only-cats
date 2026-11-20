@@ -35,7 +35,10 @@ async def get_ui_config() -> dict[str, str]:
         )
     else:
         dispenser_url = ""
-    return {"dispenser_url": dispenser_url}
+    return {
+        "dispenser_url": dispenser_url,
+        "app_version": getattr(config, "app_version", "0.0.0"),
+    }
 
 
 @router.post("/ui/lock")
