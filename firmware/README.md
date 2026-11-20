@@ -23,7 +23,8 @@
 ## upload
 > initial flash (or manually)
 
-	arduino-cli upload -p /dev/ttyACM0 --fqbn ${FQBN} firmware_sketch
+	usb_port=${usb_port:-/dev/ttyACM0}
+	arduino-cli upload -p ${usb_port} --fqbn ${FQBN} firmware_sketch
 
 
 [XIAO ESP32-C6]: https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html
