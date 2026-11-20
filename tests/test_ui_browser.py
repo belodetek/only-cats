@@ -66,6 +66,13 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     expect(page.locator("#health-panel")).to_be_visible()
     expect(page.locator("#health-raw")).to_contain_text('"admin_override": "locked"')
     expect(page.locator("#health-grid")).to_contain_text("Connected")
+    service_cell = (
+        page.locator("#health-grid > div", has_text="Service Status")
+        .locator("div")
+        .nth(1)
+    )
+    expect(service_cell).to_have_text("healthy")
+    expect(service_cell).to_have_class(re.compile(r"text-emerald-400"))
 
     # 4. Click UNLOCK -> triggers admin_unlock(), updates badge and open /health drawer
     btn_unlock.click()

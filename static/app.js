@@ -106,12 +106,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (revealPanel || !healthPanel.classList.contains("hidden")) {
         const espConnected = Boolean(data.serial_connected);
+        const serviceHealthy = espConnected && data.status === "healthy";
         const rows = [
-          ["Service Status", data.status, "text-slate-100"],
+          [
+            "Service Status",
+            espConnected ? data.status : `${data.status} (degraded)`,
+            serviceHealthy ? "text-emerald-400" : "text-amber-400",
+          ],
           [
             "ESP32 Serial",
             espConnected ? "Connected" : "Disconnected",
-            espConnected ? "text-slate-100" : "text-amber-400",
+            espConnected ? "text-emerald-400" : "text-amber-400",
           ],
           ["YOLO Model", data.model_loaded ? "Loaded" : "Missing", "text-slate-100"],
           ["Lock Engaged", data.lock_engaged ? "Yes (Closed)" : "No (Open)", "text-slate-100"],
