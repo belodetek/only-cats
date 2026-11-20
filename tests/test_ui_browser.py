@@ -180,7 +180,7 @@ def test_traefik_auth_and_webhook_routing(browser, traefik_ui_server):
 
 
 def test_dispenser_button_visibility_and_redirect(page, live_ui_server, monkeypatch):
-    """Verify Pret-a-Manger button redirects when configured and hides when unset."""
+    """Verify Pet-a-Manger button redirects when configured and hides when unset."""
     base_url, _ = live_ui_server
     target_url = config.dispenser_url
 
@@ -189,12 +189,12 @@ def test_dispenser_button_visibility_and_redirect(page, live_ui_server, monkeypa
         lambda route: route.fulfill(
             status=200,
             content_type="text/html",
-            body="<h1>Pret-a-Manger Dispenser</h1>",
+            body="<h1>Pet-a-Manger Dispenser</h1>",
         ),
     )
 
     page.goto(base_url, wait_until="networkidle")
-    dispenser_btn = page.get_by_role("button", name="Pret-a-Manger")
+    dispenser_btn = page.get_by_role("button", name="Pet-a-Manger")
     expect(dispenser_btn).to_be_visible()
     dispenser_btn.click()
     expect(page).to_have_url(target_url)
