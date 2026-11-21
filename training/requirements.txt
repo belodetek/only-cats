@@ -1,0 +1,5 @@
+openvino
+torch
+torchvision
+ultralytics
+pyyaml

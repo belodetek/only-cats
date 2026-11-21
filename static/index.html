@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en" class="dark">
+	<head>
+		<meta charset="UTF-8">
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+		>
+		<title>onlyCat(s) Control</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script src="https://unpkg.com/lucide@latest"></script>
+		<link rel="stylesheet" href="/static/styles.css?v=__ASSET_V__">
+	</head>
+	<body
+		class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-8"
+	>
+		<!-- Header -->
+		<header
+			class="w-full max-w-xl flex items-center justify-between border-b border-slate-800 pb-4"
+		>
+			<div class="flex items-center gap-3">
+				<img
+					src="/static/logo.png"
+					alt="Logo"
+					class="w-10 h-10 rounded-lg object-contain bg-slate-900 p-1 border border-slate-800"
+				>
+				<div>
+					<h1 class="text-lg sm:text-xl font-semibold tracking-tight">
+						onlyCat(s)
+					</h1>
+					<p class="text-xs text-slate-400">No Contraband</p>
+				</div>
+			</div>
+
+			<div
+				id="status-badge"
+				class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-300"
+			>
+				<span
+					id="status-dot"
+					class="w-2.5 h-2.5 rounded-full bg-slate-500"
+				></span>
+				<span id="status-text">Checking...</span>
+			</div>
+		</header>
+
+		<!-- Main 4-Button Control Grid -->
+		<main class="w-full max-w-xl my-auto py-6 flex flex-col gap-6">
+			<div class="grid grid-cols-2 gap-4 sm:gap-5">
+				<!-- 1. LOCK -->
+				<button
+					id="btn-lock"
+					type="button"
+					class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-rose-600/90 hover:bg-rose-600 text-white font-semibold shadow-lg shadow-rose-950/50 border border-rose-500/40 p-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+				>
+					<i data-lucide="lock" class="w-9 h-9 sm:w-10 sm:h-10"></i>
+					<span class="text-base sm:text-lg">Lock</span>
+					<span class="text-xs font-normal text-rose-100/80">Force Closed</span>
+				</button>
+
+				<!-- 2. UNLOCK -->
+				<button
+					id="btn-unlock"
+					type="button"
+					class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-emerald-600/90 hover:bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-950/50 border border-emerald-500/40 p-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+				>
+					<i data-lucide="lock-open" class="w-9 h-9 sm:w-10 sm:h-10"></i>
+					<span class="text-base sm:text-lg">Unlock</span>
+					<span class="text-xs font-normal text-emerald-100/80"
+						>Force Open</span
+					>
+				</button>
+
+				<!-- 3. INFO -->
+				<button
+					id="btn-info"
+					type="button"
+					class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold shadow-lg border border-slate-700 p-4 cursor-pointer"
+				>
+					<i
+						data-lucide="activity"
+						class="w-9 h-9 sm:w-10 sm:h-10 text-sky-400"
+					></i>
+					<span class="text-base sm:text-lg">Info</span>
+					<span class="text-xs font-normal text-slate-400">System Health</span>
+				</button>
+
+				<!-- 4. CAMERA -->
+				<button
+					id="btn-camera"
+					type="button"
+					class="action-btn flex flex-col items-center justify-center gap-3 min-h-[132px] sm:min-h-[156px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold shadow-lg border border-slate-700 p-4 cursor-pointer"
+				>
+					<i
+						data-lucide="video"
+						class="w-9 h-9 sm:w-10 sm:h-10 text-amber-400"
+					></i>
+					<span class="text-base sm:text-lg">Camera</span>
+					<span class="text-xs font-normal text-slate-400"
+						>Live Feed (/cctv1)</span
+					>
+				</button>
+
+				<!-- 5. kibble-bot(Pet-a-Manger) -->
+				<button
+					id="btn-dispenser"
+					type="button"
+					class="hidden col-span-2 action-btn flex flex-col items-center justify-center gap-2.5 min-h-[112px] sm:min-h-[124px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold shadow-lg border border-slate-700 p-4 cursor-pointer"
+				>
+					<i
+						data-lucide="utensils"
+						class="w-8 h-8 sm:w-9 sm:h-9 text-violet-400"
+					></i>
+					<span class="text-base sm:text-lg">Pet-a-Manger</span>
+					<span class="text-xs font-normal text-slate-400">kibble-bot UI</span>
+				</button>
+
+				<!-- 6. TRAINING DATASET -->
+				<button
+					id="btn-dataset"
+					type="button"
+					class="col-span-2 action-btn flex items-center justify-center gap-3 min-h-[64px] rounded-2xl bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold border border-slate-800 px-4 py-3 cursor-pointer"
+				>
+					<i data-lucide="images" class="w-5 h-5 text-sky-400"></i>
+					<span class="text-sm sm:text-base">Training Images</span>
+					<span
+						id="dataset-count-badge"
+						class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400"
+						>0</span
+					>
+				</button>
+			</div>
+
+			<!-- Feedback Toast -->
+			<div
+				id="toast"
+				class="hidden rounded-xl px-4 py-3 text-sm font-medium border text-center"
+			></div>
+
+			<!-- /health Output Drawer -->
+			<section
+				id="health-panel"
+				class="hidden rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-5 shadow-inner"
+			>
+				<div class="flex items-center justify-between mb-3">
+					<div
+						class="flex items-center gap-2 text-sm font-semibold text-sky-400"
+					>
+						<i data-lucide="server" class="w-4 h-4"></i>
+						<span>/health Diagnostics</span>
+					</div>
+					<button
+						id="btn-close-info"
+						type="button"
+						class="text-xs text-slate-400 hover:text-slate-200"
+					>
+						Hide
+					</button>
+				</div>
+				<dl
+					id="health-grid"
+					class="grid grid-cols-2 gap-2.5 text-xs sm:text-sm mb-3"
+				></dl>
+				<pre
+					id="health-raw"
+					class="text-xs bg-slate-950 text-slate-300 p-3 rounded-lg overflow-x-auto border border-slate-800/80"
+				></pre>
+			</section>
+
+
+		<!-- Dataset Browser Drawer -->
+		<section
+			id="dataset-panel"
+			class="hidden w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-5 mb-4"
+		>
+			<div class="flex items-center justify-between gap-2 mb-3">
+				<div class="flex items-center gap-2 text-sm font-semibold text-sky-400">
+					<i data-lucide="database" class="w-4 h-4"></i>
+					<span>Training Captures</span>
+				</div>
+				<div class="flex items-center gap-3">
+					<a
+						href="/ui/dataset/export.zip"
+						class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+					>
+						Export ZIP
+					</a>
+					<button
+						id="btn-close-dataset"
+						type="button"
+						class="text-xs text-slate-400 hover:text-slate-200"
+					>
+						Hide
+					</button>
+				</div>
+			</div>
+
+			<!-- Filter Chips -->
+			<div class="flex gap-2 mb-3 overflow-x-auto pb-1">
+				<button
+					type="button"
+					data-ds-filter="all"
+					class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-sky-600 text-white"
+				>
+					All
+				</button>
+				<button
+					type="button"
+					data-ds-filter="prey"
+					class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300"
+				>
+					Prey
+				</button>
+				<button
+					type="button"
+					data-ds-filter="empty"
+					class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300"
+				>
+					Unlabeled
+				</button>
+			</div>
+
+            <!-- Responsive Thumbnail Grid (2 cols on phone, 3 on tablet/desktop) -->
+			<div
+				id="dataset-grid"
+				class="grid grid-cols-2 sm:grid-cols-3 auto-rows-max gap-2.5 max-h-[55dvh] overflow-y-auto overscroll-contain pr-1"
+			></div>
+
+		</section>
+
+
+
+		</main>
+
+		<footer
+			class="w-full max-w-xl text-center text-xs text-slate-500 pt-2 flex flex-col gap-1.5"
+		>
+			<div>Admin override persists until changed or power cycled.</div>
+			<div
+				class="flex items-center justify-center gap-2 text-[11px] text-slate-500"
+			>
+				<span id="footer-meta"></span>
+                  <a
+                     id="footer-repo-link"
+                     href="https://github.com/belodetek/only-cats"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     aria-label="GitHub Repository"
+                     class="hidden inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors"
+                   >
+					<span aria-hidden="true">·</span>
+					<svg
+						aria-hidden="true"
+						viewBox="0 0 16 16"
+						fill="currentColor"
+						class="w-3.5 h-3.5"
+					>
+						<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+					</svg>
+					<span>GitHub</span>
+				</a>
+			</div>
+		</footer>
+
+<!-- Full-Screen Mobile / Desktop Triage Modal -->
+		<div
+			id="triage-modal"
+			class="hidden fixed inset-0 z-50 bg-slate-950/95 flex flex-col justify-between h-[100dvh] select-none"
+		>
+			<!-- Top Bar -->
+			<div
+				class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-800"
+			>
+				<div class="min-w-0">
+					<div
+						id="triage-title"
+						class="text-xs sm:text-sm font-medium text-slate-200 truncate"
+					></div>
+					<div id="triage-subtitle" class="text-[11px] text-slate-400"></div>
+				</div>
+				<div class="flex items-center gap-2 shrink-0">
+					<button
+						id="btn-toggle-box-edit"
+						type="button"
+						aria-pressed="false"
+						class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700"
+					>
+						Edit Boxes
+					</button>
+					<button
+						id="btn-close-triage"
+						type="button"
+						class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200"
+					>
+						Done
+					</button>
+				</div>
+			</div>
+
+            <!-- Center Image + Interactive Normalized SVG YOLO Box Overlay -->
+			<div
+				id="triage-stage"
+				class="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-6"
+			>
+				<div class="relative inline-block max-w-full max-h-full">
+					<img
+						id="triage-img"
+						src=""
+						alt="Training capture"
+						draggable="false"
+						class="max-h-[58dvh] sm:max-h-[68dvh] w-auto object-contain rounded-lg border border-slate-800 transition-opacity duration-150"
+					>
+					<svg
+						id="triage-svg"
+						role="img"
+						aria-label="Detected bounding boxes"
+						viewBox="0 0 1 1"
+						preserveAspectRatio="none"
+						class="absolute inset-0 w-full h-full pointer-events-none"
+					></svg>
+					<div
+						id="triage-loading"
+						role="status"
+						aria-live="polite"
+						class="hidden absolute inset-0 flex items-center justify-center rounded-lg bg-slate-950/60 backdrop-blur-[1px]"
+					>
+						<div class="w-8 h-8 rounded-full border-2 border-slate-400/30 border-t-sky-400 animate-spin"></div>
+						<span class="sr-only">Loading image...</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- Thumb-Zone Bottom Controls -->
+			<div
+				class="border-t border-slate-800 bg-slate-900/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+			>
+				<div class="max-w-xl mx-auto flex flex-col gap-2">
+					<!-- Box Edit Hint / Remove Selected Box Bar -->
+					<div
+						id="box-edit-toolbar"
+						class="hidden flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800 text-[11px] text-slate-300"
+					>
+						<span id="box-edit-hint" class="truncate">
+							Drag empty area to draw · Drag box/corners to adjust
+						</span>
+						<button
+							id="btn-remove-selected-box"
+							type="button"
+							class="shrink-0 px-2.5 py-1 rounded-lg bg-rose-950/90 hover:bg-rose-900 border border-rose-800 text-rose-200 font-medium disabled:opacity-40"
+						>
+							Remove Box
+						</button>
+					</div>
+
+					<!-- Quick Relabel Row -->
+					<div class="grid grid-cols-3 gap-2">
+						<button
+							id="btn-label-cat"
+							type="button"
+							class="min-h-[46px] rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold"
+						>
+							Cat (0)
+						</button>
+						<button
+							id="btn-label-prey"
+							type="button"
+							class="min-h-[46px] rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white text-xs sm:text-sm font-semibold"
+						>
+							Prey (1)
+						</button>
+						<button
+							id="btn-label-clear"
+							type="button"
+							class="min-h-[46px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold"
+						>
+							Negative (Empty)
+						</button>
+					</div>
+
+					<!-- Prev / Delete / Next Row -->
+					<div class="grid grid-cols-3 gap-2">
+					    <button
+							id="btn-triage-prev"
+							type="button"
+							class="min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+						>
+							← Prev
+						</button>
+						<button
+							id="btn-triage-delete"
+							type="button"
+							class="min-h-[44px] rounded-xl bg-red-950/90 hover:bg-red-900 border border-red-800 text-red-200 text-xs sm:text-sm font-medium"
+						>
+							Delete Image
+						</button>
+						<button
+							id="btn-triage-next"
+							type="button"
+							class="min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+						>
+							Next →
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="/static/app.js?v=__ASSET_V__"></script>
+	</body>
+</html>

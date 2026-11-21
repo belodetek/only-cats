@@ -1,0 +1,103 @@
+http:
+  routers:
+    domain-oauth2-proxy:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/oauth2`)'
+      entryPoints:
+        - websecure
+      priority: 600
+      service: oauth2-proxy-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
+
+    domain-dashboard:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))'
+      entryPoints:
+        - websecure
+      priority: 500
+      middlewares:
+        - oauth2-auth
+        - dashboard-redirect
+      service: api@internal
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
+
+    domain-cat-cam-1-flv:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/flv`)'
+      entryPoints:
+        - websecure
+      priority: 450
+      service: cat-cam-1-flv-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
+
+    domain-cat-cam-1:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && PathPrefix(`/cctv1`)'
+      entryPoints:
+        - websecure
+      priority: 400
+      middlewares:
+        - oauth2-auth
+        - cam-1-redirect
+        - cam-1-strip
+      service: cat-cam-1-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
+
+    domain-cat-cam-1-assets:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (PathPrefix(`/cgi-bin`) || PathPrefix(`/swf`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`) || PathPrefix(`/fonts`) || Path(`/login.html`) || Path(`/index.html`) || Path(`/favicon.ico`))'
+      entryPoints:
+        - websecure
+      priority: 400
+      middlewares:
+        - oauth2-auth
+      service: cat-cam-1-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
+
+    domain-iwatch-ui:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
+      entryPoints:
+        - websecure
+      priority: 350
+      middlewares:
+        - oauth2-auth
+      service: iwatch-ulock-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}
+
+    domain-iwatch-ublock:
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`)'
+      entryPoints:
+        - websecure
+      priority: 300
+      service: iwatch-ulock-svc
+      {{ if eq (env "CERT_RESOLVER") "none" }}
+      tls: {}
+      {{ else }}
+      tls:
+        certResolver: '{{ or (env "CERT_RESOLVER") "letsencrypt" }}'
+      {{ end }}

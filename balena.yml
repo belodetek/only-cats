@@ -1,0 +1,23 @@
+name: only-cats
+type: sw.application
+description: >-
+  Border Services Agency - preventing contraband entering the cat-flap
+assets:
+  repository:
+    type: blob.asset
+    data:
+      url: 'https://github.com/belodetek/only-cats'
+  logo:
+    type: blob.asset
+    data:
+      url: >-
+        https://raw.githubusercontent.com/belodetek/only-cats/master/static/logo.png
+data:
+  applicationEnvironmentVariables:
+    - TRAEFIK_LOG_LEVEL: INFO
+  applicationConfigVariables: []
+  defaultDeviceType: generic-amd64
+  supportedDeviceTypes:
+    - generic-amd64
+    - generic-aarch64
+version: 0.0.0
