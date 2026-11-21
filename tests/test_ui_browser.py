@@ -334,3 +334,69 @@ def test_training_dataset_triage_flow_in_browser(
     expect(page.locator("#triage-modal")).to_be_hidden()
     expect(page.locator("#dataset-count-badge")).to_have_text("0")
     assert not (images_dir / "capture_01.jpg").exists()
+
+
+def test_interactive_bounding_box_drag_draw_and_remove_in_browser(
+    page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes
+):
+    """Verify Edit Boxes mode supports dragging, drawing new boxes, and box removal."""
+    base_url, _ = live_ui_server
+    images_dir, labels_dir = tmp_data_dirs
+
+    (images_dir / "edit_01.jpg").write_bytes(sample_jpeg_bytes)
+    (labels_dir / "edit_01.txt").write_text(
+        "0 0.500000 0.500000 0.300000 0.300000\n", encoding="utf-8"
+    )
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    _stub_external_cdns(page, base_url)
+    page.goto(f"{base_url}/", wait_until="networkidle")
+
+    page.locator("#btn-dataset").click()
+    page.locator("#dataset-grid [data-ds-idx='0']").click()
+    expect(page.locator("#triage-modal")).to_be_visible()
+
+    # Enable Edit Boxes mode
+    page.locator("#btn-toggle-box-edit").click()
+    expect(page.locator("#box-edit-toolbar")).to_be_visible()
+    expect(page.locator("#triage-svg [data-handle]")).to_have_count(4)
+
+    # Draw a second box (Prey, class 1) in the top-left corner of the SVG
+    svg_box = page.locator("#triage-svg").bounding_box()
+    assert svg_box is not None
+    page.mouse.move(
+        svg_box["x"] + svg_box["width"] * 0.05,
+        svg_box["y"] + svg_box["height"] * 0.05,
+    )
+    page.mouse.down()
+    page.mouse.move(
+        svg_box["x"] + svg_box["width"] * 0.25,
+        svg_box["y"] + svg_box["height"] * 0.25,
+    )
+    with page.expect_response(
+        lambda r: "/ui/dataset/labels/edit_01.jpg" in r.url and r.status == 200
+    ):
+        page.mouse.up()
+
+    expect(page.locator("#triage-svg rect[data-box-idx]")).to_have_count(2)
+    lines = (
+        (labels_dir / "edit_01.txt").read_text(encoding="utf-8").strip().splitlines()
+    )
+    assert len(lines) == 2
+    assert lines[1].startswith("1 ")
+
+    # Remove the newly selected second box
+    with page.expect_response(
+        lambda r: "/ui/dataset/labels/edit_01.jpg" in r.url and r.status == 200
+    ):
+        page.locator("#btn-remove-selected-box").click()
+    expect(page.locator("#triage-svg rect[data-box-idx]")).to_have_count(1)
+    assert (
+        len(
+            (labels_dir / "edit_01.txt")
+            .read_text(encoding="utf-8")
+            .strip()
+            .splitlines()
+        )
+        == 1
+    )
