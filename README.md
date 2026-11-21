@@ -25,6 +25,7 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 
 - **Manual Lock / Unlock Overrides:** Force the cat-flap locked or unlocked persistently until changed or power-cycled.
 - **System Diagnostics:** Expandable drawer displaying service status.
+- **Training Images**: Captured images editor and exporter for fine-tuning the model.
 - **Live Camera Feed:** Reverse-proxied access to the Reolink camera web UI (`CAT_CAM_1`).
 - **[Pet-a-Manger] Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to link to the kibble-bot's web UI.
 
