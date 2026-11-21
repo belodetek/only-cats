@@ -290,7 +290,7 @@
 				</div>
 			</div>
 
-			<!-- Center Image + Interactive Normalized SVG YOLO Box Overlay -->
+            <!-- Center Image + Interactive Normalized SVG YOLO Box Overlay -->
 			<div
 				id="triage-stage"
 				class="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-6"
@@ -301,7 +301,7 @@
 						src=""
 						alt="Training capture"
 						draggable="false"
-						class="max-h-[58dvh] sm:max-h-[68dvh] w-auto object-contain rounded-lg border border-slate-800"
+						class="max-h-[58dvh] sm:max-h-[68dvh] w-auto object-contain rounded-lg border border-slate-800 transition-opacity duration-150"
 					>
 					<svg
 						id="triage-svg"
@@ -311,6 +311,15 @@
 						preserveAspectRatio="none"
 						class="absolute inset-0 w-full h-full pointer-events-none"
 					></svg>
+					<div
+						id="triage-loading"
+						role="status"
+						aria-live="polite"
+						class="hidden absolute inset-0 flex items-center justify-center rounded-lg bg-slate-950/60 backdrop-blur-[1px]"
+					>
+						<div class="w-8 h-8 rounded-full border-2 border-slate-400/30 border-t-sky-400 animate-spin"></div>
+						<span class="sr-only">Loading image...</span>
+					</div>
 				</div>
 			</div>
 
