@@ -287,13 +287,19 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	async function loadDataset(reveal = false) {
+		if (reveal) {
+			datasetPanel.classList.remove("hidden");
+			datasetGrid.innerHTML =
+				'<div class="col-span-full text-center text-xs text-slate-400 py-6">Loading captures...</div>';
+			datasetPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+		}
 		try {
 			const resp = await fetch(
 				`/ui/dataset/items?filter=${encodeURIComponent(datasetState.filter)}&limit=60`,
 				{ cache: "no-store" },
 			);
 			if (!resp.ok) {
-				return;
+				throw new Error(`HTTP ${resp.status}`);
 			}
 			const payload = await resp.json();
 			datasetState.items = payload.items || [];
@@ -301,11 +307,11 @@ document.addEventListener("DOMContentLoaded", () => {
 				datasetCountBadge.textContent = String(payload.counts.all ?? 0);
 			}
 			renderDatasetGrid();
+		} catch (err) {
 			if (reveal) {
-				datasetPanel.classList.remove("hidden");
+				datasetGrid.innerHTML = `<div class="col-span-full text-center text-xs text-rose-400 py-6">Failed to load captures (${err.message}).</div>`;
+				showToast(`Failed to load training images: ${err.message}`, "error");
 			}
-		} catch (_err) {
-			// Ignore if dataset endpoint unavailable
 		}
 	}
 

@@ -1,11 +1,12 @@
 """Web UI router for manual lock/unlock controls, diagnostics, and camera redirect."""
 
+import hashlib
 from pathlib import Path
 from urllib.parse import urlsplit
 
 # pylint: disable=import-error
 from fastapi import APIRouter, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 
 # pylint: enable=import-error
 import config
@@ -24,10 +25,26 @@ INDEX_HTML = STATIC_DIR / "index.html"
 router = APIRouter(tags=["web-ui"])
 
 
+def _compute_asset_version() -> str:
+    """Compute a short content hash across static JS/CSS assets for cache-busting."""
+    digest = hashlib.sha256()
+    for name in ("app.js", "styles.css"):
+        asset = STATIC_DIR / name
+        if asset.is_file():
+            digest.update(asset.read_bytes())
+    return digest.hexdigest()[:8]
+
+
 @router.get("/", include_in_schema=False)
-async def ui_root() -> FileResponse:
-    """Serve the responsive web control interface at root (/)."""
-    return FileResponse(INDEX_HTML)
+async def ui_root() -> HTMLResponse:
+    """Serve the responsive web control interface with fingerprinted asset URLs."""
+    html = INDEX_HTML.read_text(encoding="utf-8").replace(
+        "__ASSET_V__", _compute_asset_version()
+    )
+    return HTMLResponse(
+        content=html,
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @router.get("/ui/config")

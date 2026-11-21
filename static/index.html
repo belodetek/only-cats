@@ -9,7 +9,7 @@
 		<title>onlyCat(s) Control</title>
 		<script src="https://cdn.tailwindcss.com"></script>
 		<script src="https://unpkg.com/lucide@latest"></script>
-		<link rel="stylesheet" href="/static/styles.css">
+		<link rel="stylesheet" href="/static/styles.css?v=__ASSET_V__">
 	</head>
 	<body
 		class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-8"
@@ -166,30 +166,7 @@
 					class="text-xs bg-slate-950 text-slate-300 p-3 rounded-lg overflow-x-auto border border-slate-800/80"
 				></pre>
 			</section>
-		</main>
 
-		<footer
-			class="w-full max-w-xl text-center text-xs text-slate-500 pt-2 flex flex-col gap-1.5"
-		>
-			<div>Admin override persists until changed or power cycled.</div>
-			<div
-				class="flex items-center justify-center gap-2 text-[11px] text-slate-500"
-			>
-				<span id="footer-meta"></span>
-                  <a
-                     id="footer-repo-link"
-                     href="https://github.com/belodetek/only-cats"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     aria-label="GitHub Repository"
-                     class="hidden inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors"
-                   >
-					<span aria-hidden="true">·</span>
-					<i data-lucide="github" class="w-3.5 h-3.5"></i>
-					<span>GitHub</span>
-				</a>
-			</div>
-		</footer>
 
 		<!-- Dataset Browser Drawer -->
 		<section
@@ -249,6 +226,33 @@
 				class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto"
 			></div>
 		</section>
+
+
+
+		</main>
+
+		<footer
+			class="w-full max-w-xl text-center text-xs text-slate-500 pt-2 flex flex-col gap-1.5"
+		>
+			<div>Admin override persists until changed or power cycled.</div>
+			<div
+				class="flex items-center justify-center gap-2 text-[11px] text-slate-500"
+			>
+				<span id="footer-meta"></span>
+                  <a
+                     id="footer-repo-link"
+                     href="https://github.com/belodetek/only-cats"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     aria-label="GitHub Repository"
+                     class="hidden inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors"
+                   >
+					<span aria-hidden="true">·</span>
+					<i data-lucide="github" class="w-3.5 h-3.5"></i>
+					<span>GitHub</span>
+				</a>
+			</div>
+		</footer>
 
 		<!-- Full-Screen Mobile / Desktop Triage Modal -->
 		<div
@@ -356,6 +360,6 @@
 			</div>
 		</div>
 
-		<script src="/static/app.js"></script>
+		<script src="/static/app.js?v=__ASSET_V__"></script>
 	</body>
 </html>
