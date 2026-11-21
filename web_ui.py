@@ -4,11 +4,19 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 # pylint: disable=import-error
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 
 # pylint: enable=import-error
 import config
+from dataset import (
+    LabelUpdatePayload,
+    build_dataset_zip,
+    delete_dataset_item,
+    get_image_bytes,
+    list_dataset_items,
+    save_image_labels,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 INDEX_HTML = STATIC_DIR / "index.html"
@@ -60,3 +68,49 @@ async def ui_force_unlock(request: Request) -> dict:
         raise HTTPException(status_code=503, detail="Lock controller not initialized")
     deps.controller.admin_unlock()
     return {"status": "unlocked", "admin_override": "unlocked"}
+
+
+@router.get("/ui/dataset/items")
+async def ui_dataset_items(
+    filter_mode: str = Query("all", alias="filter", pattern="^(all|prey|empty)$"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=100),
+) -> dict:
+    """List captured training images and YOLO bounding boxes."""
+    return list_dataset_items(filter_mode=filter_mode, offset=offset, limit=limit)
+
+
+@router.get("/ui/dataset/image/{filename}")
+async def ui_dataset_image(filename: str, thumb: bool = Query(False)) -> Response:
+    """Serve a training capture JPEG or lightweight thumbnail."""
+    data = get_image_bytes(filename, thumb=thumb)
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
+@router.put("/ui/dataset/labels/{filename}")
+async def ui_dataset_update_labels(filename: str, payload: LabelUpdatePayload) -> dict:
+    """Update YOLO class IDs or bounding boxes for a captured image."""
+    updated = save_image_labels(filename, payload.boxes)
+    return {"filename": filename, "boxes": updated}
+
+
+@router.delete("/ui/dataset/items/{filename}")
+async def ui_dataset_delete_item(filename: str) -> dict:
+    """Delete a captured image and its label file from the training set."""
+    delete_dataset_item(filename)
+    return {"deleted": filename}
+
+
+@router.get("/ui/dataset/export.zip")
+async def ui_dataset_export_zip() -> Response:
+    """Download all captured images and YOLO labels as a training-ready ZIP."""
+    archive = build_dataset_zip()
+    return Response(
+        content=archive,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="only-cats-dataset.zip"'},
+    )

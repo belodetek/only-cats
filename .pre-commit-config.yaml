@@ -53,3 +53,12 @@ repos:
         entry: shellcheck -x # Follow 'source' statements
         language: system
         types: [shell]
+
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v2.6.8
+    hooks:
+      - id: biome-check
+        language_version: system
+        additional_dependencies: ["@biomejs/biome@2.6.8"]
+        types: [text]
+        files: "\\.(jsx?|tsx?|c(js|ts)|m(js|ts)|d\\.(ts|cts|mts)|jsonc?|css|html)$"

@@ -1,17 +1,20 @@
 /* Smooth tap feedback and safe-area padding for mobile Chrome */
 body {
-  padding-bottom: env(safe-area-inset-bottom, 1rem);
-  -webkit-tap-highlight-color: transparent;
+	padding-bottom: env(safe-area-inset-bottom, 1rem);
+	-webkit-tap-highlight-color: transparent;
 }
 
 .hidden {
-  display: none;
+	display: none;
 }
 
 .action-btn {
-  transition: transform 0.12s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+	transition:
+		transform 0.12s ease,
+		box-shadow 0.15s ease,
+		background-color 0.15s ease;
 }
 
 .action-btn:active {
-  transform: scale(0.97);
+	transform: scale(0.97);
 }

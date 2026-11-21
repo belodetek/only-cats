@@ -287,3 +287,50 @@ def test_ui_warns_on_esp32_firmware_version_mismatch(page: Page, live_ui_server)
     )
     expect(fw_cell).to_have_text("old1111 (deadbeef) (local: new2222)")
     expect(fw_cell).to_have_class(re.compile(r"text-amber-400"))
+
+
+@pytest.mark.parametrize(
+    "viewport",
+    [
+        {"width": 1280, "height": 800},
+        {"width": 390, "height": 844},
+    ],
+    ids=["desktop", "mobile"],
+)
+def test_training_dataset_triage_flow_in_browser(
+    page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes, viewport
+):
+    """Verify training image browser, SVG box overlay, relabeling, and deletion."""
+    base_url, _ = live_ui_server
+    images_dir, labels_dir = tmp_data_dirs
+
+    (images_dir / "capture_01.jpg").write_bytes(sample_jpeg_bytes)
+    (labels_dir / "capture_01.txt").write_text("0 0.5 0.5 0.4 0.4\n", encoding="utf-8")
+
+    page.set_viewport_size(viewport)
+    _stub_external_cdns(page, base_url)
+    page.goto(f"{base_url}/", wait_until="networkidle")
+
+    # 1. Open dataset drawer and confirm capture count badge + thumbnail card
+    expect(page.locator("#dataset-count-badge")).to_have_text("1")
+    page.locator("#btn-dataset").click()
+    expect(page.locator("#dataset-panel")).to_be_visible()
+    card = page.locator("#dataset-grid [data-ds-idx='0']")
+    expect(card).to_be_visible()
+
+    # 2. Tap card -> opens full-screen triage modal with green Cat SVG box
+    card.click()
+    expect(page.locator("#triage-modal")).to_be_visible()
+    svg_rect = page.locator("#triage-svg rect").first
+    expect(svg_rect).to_have_attribute("stroke", "#34d399")
+
+    # 3. Tap 'Mark Prey (1)' -> updates YOLO label on disk and turns box rose (#f43f5e)
+    page.locator("#btn-label-prey").click()
+    expect(svg_rect).to_have_attribute("stroke", "#f43f5e")
+    assert (labels_dir / "capture_01.txt").read_text(encoding="utf-8").startswith("1 ")
+
+    # 4. Tap 'Delete' -> removes capture, closes modal, and resets badge to 0
+    page.locator("#btn-triage-delete").click()
+    expect(page.locator("#triage-modal")).to_be_hidden()
+    expect(page.locator("#dataset-count-badge")).to_have_text("0")
+    assert not (images_dir / "capture_01.jpg").exists()
