@@ -28,8 +28,11 @@ document.addEventListener("DOMContentLoaded", () => {
 	const triageStage = document.getElementById("triage-stage");
 	const triageImg = document.getElementById("triage-img");
 	const triageSvg = document.getElementById("triage-svg");
+	const triageLoading = document.getElementById("triage-loading");
 	const triageTitle = document.getElementById("triage-title");
 	const triageSubtitle = document.getElementById("triage-subtitle");
+	const btnTriagePrev = document.getElementById("btn-triage-prev");
+	const btnTriageNext = document.getElementById("btn-triage-next");
 	const btnToggleBoxEdit = document.getElementById("btn-toggle-box-edit");
 	const boxEditToolbar = document.getElementById("box-edit-toolbar");
 	const boxEditHint = document.getElementById("box-edit-hint");
@@ -51,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
 		filter: "all",
 		items: [],
 		activeIndex: -1,
+		isLoadingImage: false,
 		editMode: false,
 		selectedBoxIndex: 0,
 		defaultDrawClass: 1,
@@ -286,6 +290,25 @@ document.addEventListener("DOMContentLoaded", () => {
 		};
 	}
 
+	function setTriageImageLoading(loading) {
+		datasetState.isLoadingImage = Boolean(loading);
+		if (triageLoading) {
+			triageLoading.classList.toggle("hidden", !datasetState.isLoadingImage);
+		}
+		if (triageImg) {
+			triageImg.classList.toggle("opacity-40", datasetState.isLoadingImage);
+		}
+		if (btnTriagePrev) {
+			btnTriagePrev.disabled =
+				datasetState.isLoadingImage || datasetState.activeIndex <= 0;
+		}
+		if (btnTriageNext) {
+			btnTriageNext.disabled =
+				datasetState.isLoadingImage ||
+				datasetState.activeIndex >= datasetState.items.length - 1;
+		}
+	}
+
 	function updateTriageSubtitle() {
 		const item = datasetState.items[datasetState.activeIndex];
 		if (!item) {
@@ -403,8 +426,12 @@ document.addEventListener("DOMContentLoaded", () => {
 		}
 	}
 
-	function openTriageAt(index) {
+	function openTriageAt(index, force = false) {
+		if (!force && datasetState.isLoadingImage) {
+			return;
+		}
 		if (index < 0 || index >= datasetState.items.length) {
+			setTriageImageLoading(false);
 			triageModal.classList.add("hidden");
 			datasetState.activeIndex = -1;
 			datasetState.drag = null;
@@ -415,9 +442,16 @@ document.addEventListener("DOMContentLoaded", () => {
 		datasetState.drag = null;
 		const item = datasetState.items[index];
 		triageTitle.textContent = item.filename;
-		triageImg.src = item.image_url;
 		renderSvgBoxes(item.boxes);
 		triageModal.classList.remove("hidden");
+
+		const targetUrl = new URL(item.image_url, window.location.origin).href;
+		if (triageImg.src === targetUrl && triageImg.complete) {
+			setTriageImageLoading(false);
+		} else {
+			setTriageImageLoading(true);
+			triageImg.src = item.image_url;
+		}
 	}
 
 	function renderDatasetGrid() {
@@ -572,6 +606,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 			openTriageAt(
 				Math.min(datasetState.activeIndex, datasetState.items.length - 1),
+				true,
 			);
 		}
 	}
@@ -603,6 +638,11 @@ document.addEventListener("DOMContentLoaded", () => {
 	});
 
 	if (btnDataset) {
+		if (triageImg) {
+			triageImg.addEventListener("load", () => setTriageImageLoading(false));
+			triageImg.addEventListener("error", () => setTriageImageLoading(false));
+		}
+
 		btnDataset.addEventListener("click", () => loadDataset(true));
 		btnCloseDataset.addEventListener("click", () =>
 			datasetPanel.classList.add("hidden"),
@@ -623,7 +663,7 @@ document.addEventListener("DOMContentLoaded", () => {
 		datasetGrid.addEventListener("click", (ev) => {
 			const card = ev.target.closest("[data-ds-idx]");
 			if (card) {
-				openTriageAt(Number(card.dataset.dsIdx));
+				openTriageAt(Number(card.dataset.dsIdx), true);
 			}
 		});
 
@@ -638,7 +678,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		// Interactive SVG pointer gestures (draw new box, move box, resize corners)
 		triageSvg.addEventListener("pointerdown", (ev) => {
-			if (!datasetState.editMode) {
+			if (!datasetState.editMode || datasetState.isLoadingImage) {
 				return;
 			}
 			const item = datasetState.items[datasetState.activeIndex];
@@ -802,21 +842,22 @@ document.addEventListener("DOMContentLoaded", () => {
 			.getElementById("btn-close-triage")
 			.addEventListener("click", () => {
 				setBoxEditMode(false);
+				setTriageImageLoading(false);
 				triageModal.classList.add("hidden");
 				datasetState.activeIndex = -1;
 			});
-		document
-			.getElementById("btn-triage-prev")
-			.addEventListener("click", () =>
+		if (btnTriagePrev) {
+			btnTriagePrev.addEventListener("click", () =>
 				openTriageAt(Math.max(0, datasetState.activeIndex - 1)),
 			);
-		document
-			.getElementById("btn-triage-next")
-			.addEventListener("click", () =>
+		}
+		if (btnTriageNext) {
+			btnTriageNext.addEventListener("click", () =>
 				openTriageAt(
 					Math.min(datasetState.items.length - 1, datasetState.activeIndex + 1),
 				),
 			);
+		}
 		document
 			.getElementById("btn-label-cat")
 			.addEventListener("click", () => relabelActiveItem("cat"));
@@ -830,12 +871,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			.getElementById("btn-triage-delete")
 			.addEventListener("click", deleteActiveItem);
 
-		// Mobile horizontal swipe navigation in triage modal (disabled while editing boxes)
+		// Mobile horizontal swipe navigation in triage modal (disabled while editing or loading)
 		let touchStartX = 0;
 		triageStage.addEventListener(
 			"touchstart",
 			(ev) => {
-				if (datasetState.editMode) {
+				if (datasetState.editMode || datasetState.isLoadingImage) {
 					return;
 				}
 				touchStartX = ev.changedTouches[0].screenX;
@@ -845,7 +886,7 @@ document.addEventListener("DOMContentLoaded", () => {
 		triageStage.addEventListener(
 			"touchend",
 			(ev) => {
-				if (datasetState.editMode) {
+				if (datasetState.editMode || datasetState.isLoadingImage) {
 					return;
 				}
 				const dx = ev.changedTouches[0].screenX - touchStartX;
@@ -868,10 +909,10 @@ document.addEventListener("DOMContentLoaded", () => {
 			if (triageModal.classList.contains("hidden")) {
 				return;
 			}
-			if (ev.key === "ArrowLeft") {
+			if (ev.key === "ArrowLeft" && !datasetState.isLoadingImage) {
 				openTriageAt(Math.max(0, datasetState.activeIndex - 1));
 			}
-			if (ev.key === "ArrowRight") {
+			if (ev.key === "ArrowRight" && !datasetState.isLoadingImage) {
 				openTriageAt(
 					Math.min(datasetState.items.length - 1, datasetState.activeIndex + 1),
 				);
@@ -890,6 +931,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 			if (ev.key === "Escape") {
 				setBoxEditMode(false);
+				setTriageImageLoading(false);
 				triageModal.classList.add("hidden");
 				datasetState.activeIndex = -1;
 			}

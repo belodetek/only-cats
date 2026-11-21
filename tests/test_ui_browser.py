@@ -400,3 +400,40 @@ def test_interactive_bounding_box_drag_draw_and_remove_in_browser(
         )
         == 1
     )
+
+
+def test_triage_pagination_shows_spinner_and_locks_buttons_while_loading(
+    page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes
+):
+    """Verify Prev/Next buttons disable and spinner shows until next image loads."""
+    base_url, _ = live_ui_server
+    images_dir, _ = tmp_data_dirs
+
+    (images_dir / "img_01.jpg").write_bytes(sample_jpeg_bytes)
+    (images_dir / "img_02.jpg").write_bytes(sample_jpeg_bytes)
+
+    _stub_external_cdns(page, base_url)
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.locator("#btn-dataset").click()
+    page.locator("#dataset-grid [data-ds-idx='0']").click()
+    expect(page.locator("#triage-loading")).to_be_hidden()
+
+    # Hold the second full-res image response to inspect in-flight loading state
+    release_image = []
+
+    def _hold_second_image(route):
+        if "thumb=1" in route.request.url:
+            route.continue_()
+            return
+        release_image.append(route)
+
+    page.route(f"{base_url}/ui/dataset/image/*", _hold_second_image)
+    page.locator("#btn-triage-next").click()
+
+    expect(page.locator("#triage-loading")).to_be_visible()
+    expect(page.locator("#btn-triage-prev")).to_be_disabled()
+    expect(page.locator("#btn-triage-next")).to_be_disabled()
+
+    release_image[0].continue_()
+    expect(page.locator("#triage-loading")).to_be_hidden()
+    expect(page.locator("#btn-triage-prev")).to_be_enabled()
