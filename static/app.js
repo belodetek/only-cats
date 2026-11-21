@@ -538,7 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	async function removeSelectedBox() {
 		const item = datasetState.items[datasetState.activeIndex];
-		if (!item || !item.boxes.length) {
+		if (!item?.boxes.length) {
 			return;
 		}
 		const nextBoxes = item.boxes.filter(
@@ -715,7 +715,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				return;
 			}
 			const item = datasetState.items[datasetState.activeIndex];
-			if (!item || !item.boxes[drag.boxIdx]) {
+			if (!item?.boxes[drag.boxIdx]) {
 				return;
 			}
 			const pt = clientToNorm(ev.clientX, ev.clientY);
