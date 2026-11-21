@@ -254,14 +254,14 @@
 			</div>
 		</footer>
 
-		<!-- Full-Screen Mobile / Desktop Triage Modal -->
+<!-- Full-Screen Mobile / Desktop Triage Modal -->
 		<div
 			id="triage-modal"
 			class="hidden fixed inset-0 z-50 bg-slate-950/95 flex flex-col justify-between h-[100dvh] select-none"
 		>
 			<!-- Top Bar -->
 			<div
-				class="flex items-center justify-between px-4 py-3 border-b border-slate-800"
+				class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-800"
 			>
 				<div class="min-w-0">
 					<div
@@ -270,16 +270,26 @@
 					></div>
 					<div id="triage-subtitle" class="text-[11px] text-slate-400"></div>
 				</div>
-				<button
-					id="btn-close-triage"
-					type="button"
-					class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-medium text-slate-200"
-				>
-					Done
-				</button>
+				<div class="flex items-center gap-2 shrink-0">
+					<button
+						id="btn-toggle-box-edit"
+						type="button"
+						aria-pressed="false"
+						class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700"
+					>
+						Edit Boxes
+					</button>
+					<button
+						id="btn-close-triage"
+						type="button"
+						class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200"
+					>
+						Done
+					</button>
+				</div>
 			</div>
 
-			<!-- Center Image + Normalized SVG YOLO Box Overlay -->
+			<!-- Center Image + Interactive Normalized SVG YOLO Box Overlay -->
 			<div
 				id="triage-stage"
 				class="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-6"
@@ -289,16 +299,17 @@
 						id="triage-img"
 						src=""
 						alt="Training capture"
-						class="max-h-[62dvh] sm:max-h-[70dvh] w-auto object-contain rounded-lg border border-slate-800"
+						draggable="false"
+						class="max-h-[58dvh] sm:max-h-[68dvh] w-auto object-contain rounded-lg border border-slate-800"
 					>
-                    <svg
-                      id="triage-svg"
-                      role="img"
-                      aria-label="Detected bounding boxes"
-                      viewBox="0 0 1 1"
-                      preserveAspectRatio="none"
-                      class="absolute inset-0 w-full h-full pointer-events-none"
-                    ></svg>
+					<svg
+						id="triage-svg"
+						role="img"
+						aria-label="Detected bounding boxes"
+						viewBox="0 0 1 1"
+						preserveAspectRatio="none"
+						class="absolute inset-0 w-full h-full pointer-events-none"
+					></svg>
 				</div>
 			</div>
 
@@ -307,6 +318,23 @@
 				class="border-t border-slate-800 bg-slate-900/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
 			>
 				<div class="max-w-xl mx-auto flex flex-col gap-2">
+					<!-- Box Edit Hint / Remove Selected Box Bar -->
+					<div
+						id="box-edit-toolbar"
+						class="hidden flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800 text-[11px] text-slate-300"
+					>
+						<span id="box-edit-hint" class="truncate">
+							Drag empty area to draw · Drag box/corners to adjust
+						</span>
+						<button
+							id="btn-remove-selected-box"
+							type="button"
+							class="shrink-0 px-2.5 py-1 rounded-lg bg-rose-950/90 hover:bg-rose-900 border border-rose-800 text-rose-200 font-medium disabled:opacity-40"
+						>
+							Remove Box
+						</button>
+					</div>
+
 					<!-- Quick Relabel Row -->
 					<div class="grid grid-cols-3 gap-2">
 						<button
@@ -314,14 +342,14 @@
 							type="button"
 							class="min-h-[46px] rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold"
 						>
-							Cat Only (0)
+							Cat (0)
 						</button>
 						<button
 							id="btn-label-prey"
 							type="button"
 							class="min-h-[46px] rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white text-xs sm:text-sm font-semibold"
 						>
-							Mark Prey (1)
+							Prey (1)
 						</button>
 						<button
 							id="btn-label-clear"
@@ -346,7 +374,7 @@
 							type="button"
 							class="min-h-[44px] rounded-xl bg-red-950/90 hover:bg-red-900 border border-red-800 text-red-200 text-xs sm:text-sm font-medium"
 						>
-							Delete
+							Delete Image
 						</button>
 						<button
 							id="btn-triage-next"
