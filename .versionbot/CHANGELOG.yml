@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update diagram"
+      hash: 819bcd1060e661b309b86b0892ce86a18048e398
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.2
+  title: ""
+  date: 2026-11-22T14:55:41.050Z
+- commits:
     - subject: "patch: Update solenoid lock link description"
       hash: 1b5251ad7b63d976e9e138c94a550c1561e5a9d8
       body: ""
