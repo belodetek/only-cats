@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Prometheus metrics and JSON meta"
+      hash: 21c076d2205e3d4a82c6867288f97e03ac15e26e
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.3
+  title: ""
+  date: 2026-11-22T20:32:00.482Z
+- commits:
     - subject: "patch: Update diagram"
       hash: 819bcd1060e661b309b86b0892ce86a18048e398
       body: ""
