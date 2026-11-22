@@ -48,7 +48,7 @@ RUN pip install --no-cache-dir --no-index --no-deps --find-links=/wheels /wheels
 COPY balena.yml ./
 COPY src/ ./src/
 COPY static/ ./static/
-COPY training/runs/latest/weights/ ./
+COPY training/runs/latest/weights/ ./weights/
 COPY firmware/bin/firmware_sketch.ino.bin ./flash/
 
 EXPOSE 8000
