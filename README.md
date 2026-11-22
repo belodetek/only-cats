@@ -132,5 +132,5 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 [REOLINK PoE Security Camera RLC-810A]: https://www.amazon.ca/dp/B08MQ61MKN
 [PoE injector]: https://www.amazon.ca/dp/B07PR9CBGL
 [5V single channel relay (opto-coupler) H/L trigger jumper]: https://www.aliexpress.com/item/1005004493713732.html
-[24VDC solenoid lock NO]: https://www.aliexpress.com/item/1005006233548116.html
+[24VDC solenoid lock (N)ormally(O)pen]: https://www.aliexpress.com/item/1005006233548116.html
 [Seeed Studio XIAO ESP32-C6]: https://www.aliexpress.com/item/1005008884996574.html
