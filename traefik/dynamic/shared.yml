@@ -1,0 +1,109 @@
+http:
+  routers:
+    redirect-to-https:
+      rule: '!HostRegexp(`^.+\.balena-devices\.com$`) && !Header(`X-Forwarded-Proto`, `https`)'
+      entryPoints:
+        - web
+      priority: 1000
+      middlewares:
+        - redirect-scheme-https
+      service: noop@internal
+
+  middlewares:
+    security-headers:
+      headers:
+        customFrameOptionsValue: "DENY"
+        contentTypeNosniff: true
+        referrerPolicy: "same-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+        contentSecurityPolicy: >-
+          default-src 'self';
+          script-src 'self' https://cdn.tailwindcss.com https://unpkg.com;
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data: blob:;
+          connect-src 'self';
+          frame-ancestors 'none';
+          base-uri 'self';
+          form-action 'self';
+
+    strip-static:
+      stripPrefix:
+        prefixes:
+          - "/static"
+
+    friendly-50x:
+      errors:
+        status:
+          - "502-504"
+        service: error-pages-svc
+        query: "/error.html?code={status}"
+
+    oauth2-auth:
+      forwardAuth:
+        address: http://oauth2-proxy:4180/oauth2/auth
+        trustForwardHeader: true
+        maxResponseBodySize: 1048576
+        authResponseHeaders:
+          - Authorization
+          - X-Auth-Request-Access-Token
+          - X-Auth-Request-Email
+          - X-Auth-Request-User
+
+    redirect-scheme-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    balena-https-proto:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+
+    dashboard-redirect:
+      redirectRegex:
+        regex: '^https?://([^/]+/dashboard)$'
+        replacement: 'https://${1}/'
+
+    cam-1-redirect:
+      redirectRegex:
+        regex: '^https?://([^/]+/cctv1)$'
+        replacement: 'https://${1}/'
+
+    cam-1-strip:
+      stripPrefix:
+        prefixes:
+          - /cctv1
+
+  serversTransports:
+    cat-cam-1-insecure:
+      insecureSkipVerify: true
+
+  services:
+    error-pages-svc:
+      loadBalancer:
+        servers:
+          - url: http://error-pages:8080
+
+    oauth2-proxy-svc:
+      loadBalancer:
+        servers:
+          - url: http://oauth2-proxy:4180
+
+    cat-cam-1-svc:
+      loadBalancer:
+        serversTransport: cat-cam-1-insecure
+        servers:
+          - url: https://{{ env "CAT_CAM_1" }}:443
+
+    cat-cam-1-flv-svc:
+      loadBalancer:
+        serversTransport: cat-cam-1-insecure
+        responseForwarding:
+          flushInterval: -1
+        servers:
+          - url: https://{{ env "CAT_CAM_1" }}:443
+
+    iwatch-ulock-svc:
+      loadBalancer:
+        servers:
+          - url: http://iwatch-ulock:8000

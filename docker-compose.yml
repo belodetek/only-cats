@@ -1,0 +1,157 @@
+# balena-compose
+---
+version: '2.4'
+
+volumes:
+  resin-data: {}
+  acme-data: {}
+  signal-data: {}
+
+networks:
+  only-cats:
+    driver: bridge
+
+x-common: &common
+  tty: true
+  restart: unless-stopped
+
+services:
+  # with Gandi ACME config.
+  traefik:
+    build: traefik
+    <<: *common
+    ports:
+      - "80:80"
+      - "443:443"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    networks:
+      - only-cats
+    command:
+      - "--accesslog.format=common"
+      - "--accesslog=true"
+      - "--api.dashboard=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=15"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=gandiv5"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=\"${ACME_EMAIL}\""
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.aliasHeadersStrategy=reject"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.aliasHeadersStrategy=reject"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addserviceslabels=true"
+      - "--metrics.prometheus=true"
+      - "--ping.entrypoint=traefik"
+      - "--ping=true"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - acme-data:/letsencrypt
+
+  error-pages:
+    build:
+      context: .
+      dockerfile: Dockerfile.error-pages
+    <<: *common
+    networks:
+      - only-cats
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/error.html')"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048  # v7.15.6
+    <<: *common
+    networks:
+      - only-cats
+    expose:
+      - 4180
+    environment:
+      OAUTH2_PROXY_COOKIE_CSRF_EXPIRE: 5m
+      OAUTH2_PROXY_COOKIE_CSRF_PER_REQUEST: "false"
+      OAUTH2_PROXY_COOKIE_PATH: /
+      OAUTH2_PROXY_COOKIE_SAMESITE: strict
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_PROVIDER: github
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SKIP_AUTH_PREFLIGHT: "true"
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .balena-devices.com
+
+  signal-api:
+    image: bbernhard/signal-cli-rest-api@sha256:2cf09d66a86fdd210e42ee91662216364acc27da1163a8c44167a77ea3a6559a  # 0.101
+    <<: *common
+    networks:
+      - only-cats
+    expose:
+      - 8080
+    environment:
+      MODE: native
+    volumes:
+      - signal-data:/home/.local/share/signal-cli
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  iwatch-ulock:
+    build: .
+    <<: *common
+    networks:
+      - only-cats
+    expose:
+      - 8000
+    devices:
+      # [ -e /dev/ttyACM0 ] ||  mknod /dev/ttyACM0 c 166 0
+      - /dev/ttyACM0:/dev/ttyACM0
+    environment:
+      YOLO_VERBOSE: False
+      ULTRALYTICS_AUTOINSTALL: False
+    group_add:
+      - dialout
+    volumes:
+      - resin-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  # https://github.com/mcuadros/ofelia
+  ipurge:
+    image: mcuadros/ofelia@sha256:d37e9a4cc2ee15c6eb3f3a640b4f3c2a78ec0207c039dbf456624875281e078b
+    <<: *common
+    volumes:
+      - resin-data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat << 'EOF' > /etc/ofelia.conf
+        [job-local "purge-training-data"]
+        schedule = 4 2 0 * * *
+        command = sh -c "find /data/images /data/labels -type f \\( -name '*.jpg' -o -name '*.txt' \\) -mtime +90 -delete"
+        EOF
+        exec /usr/bin/ofelia daemon --config=/etc/ofelia.conf
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/bin/ofelia validate --config=/etc/ofelia.conf && pgrep ofelia"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s

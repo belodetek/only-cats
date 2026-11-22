@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" class="dark">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>__CODE__ · __TITLE__ — onlyCat(s)</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body
+		class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-6"
+	>
+		<main class="w-full max-w-md text-center flex flex-col items-center gap-4">
+			<!-- CC0 Public Domain minimalist cat silhouette -->
+			<svg
+				role="img"
+				aria-label="Cat door closed"
+				viewBox="0 0 120 100"
+				class="w-28 h-24 text-slate-400"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="3.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
+				<path d="M26 44 L22 14 L46 30 Q60 26 74 30 L98 14 L94 44 C100 56 96 82 60 84 C24 82 20 56 26 44 Z" />
+				<circle cx="46" cy="52" r="3" fill="currentColor" stroke="none" />
+				<circle cx="74" cy="52" r="3" fill="currentColor" stroke="none" />
+				<path d="M56 62 L60 66 L64 62 M60 66 L60 71 M52 72 Q60 76 68 72" />
+			</svg>
+			<div id="err-code" class="text-5xl font-bold tracking-tight text-sky-400">__CODE__</div>
+			<h1 id="err-title" class="text-xl font-semibold">__TITLE__</h1>
+			<p id="err-msg" class="text-sm text-slate-400">__MESSAGE__</p>
+			<a
+				href="/"
+				class="mt-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-100 border border-slate-700"
+			>
+				Back to Control Panel
+			</a>
+		</main>
+		<script src="/static/error.js" defer></script>
+	</body>
+</html>
