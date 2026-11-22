@@ -63,16 +63,24 @@ def test_ui_root_serves_html_and_static_assets():
     assert "onlyCat(s)" in resp.text
     assert "/static/logo.png" in resp.text
     assert "/static/app.js" in resp.text
+    assert 'id="triage-meta-bar"' in resp.text
+    assert 'id="btn-drawer"' in resp.text
+    assert 'id="telemetry-drawer"' in resp.text
+    assert 'href="/metrics"' in resp.text
 
-    js_resp = client.get("/static/app.js")
+    # Versioned static asset gets immutable Cache-Control + gzip compression
+    js_resp = client.get(
+        "/static/app.js?v=test123",
+        headers={"Accept-Encoding": "gzip"},
+    )
     assert js_resp.status_code == 200
-    assert "/cctv1/" in js_resp.text
+    assert js_resp.headers.get("cache-control") == "public, max-age=31536000, immutable"
+    assert js_resp.headers.get("content-encoding") == "gzip"
 
-    css_resp = client.get("/static/styles.css")
-    assert css_resp.status_code == 200
-
+    # Unversioned asset (e.g. /static/logo.png without ?v=) is not marked immutable
     logo_resp = client.get("/static/logo.png")
     assert logo_resp.status_code == 200
+    assert "immutable" not in logo_resp.headers.get("cache-control", "")
 
 
 def test_ui_lock_and_unlock_endpoints():
@@ -98,7 +106,8 @@ def test_friendly_html_404_for_browsers_and_json_for_api():
     assert html_resp.status_code == 404
     assert "text/html" in html_resp.headers["content-type"]
     assert "404" in html_resp.text
-    assert "Back to Control Panel" in html_resp.text
+    assert 'id="refresh-btn"' in html_resp.text
+    assert "Refresh" in html_resp.text
 
     json_resp = client.get("/nonexistent-page", headers={"Accept": "application/json"})
     assert json_resp.status_code == 404

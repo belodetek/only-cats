@@ -1,3 +1,4 @@
+# pylint: disable=too-few-public-methods
 """Reolink camera snapshot receiver and ESP32 door lock controller.
 
 Evaluates incoming camera motion webhooks, runs YOLO inference to detect
@@ -17,14 +18,16 @@ from urllib.parse import urlsplit
 # pylint: disable=import-error
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
+from starlette.types import Scope
 from ultralytics import YOLO
 
-import api_routes
-
 # pylint: enable=import-error
+import api_routes
 import config
 import web_ui
 from dispenser import trigger_dispenser
@@ -51,6 +54,18 @@ _CSP_POLICY = (
     "base-uri 'self'; "
     "form-action 'self'"
 )
+
+
+class VersionedStaticFiles(StaticFiles):
+    """Serve /static assets with immutable Cache-Control when ?v= query param is present."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        """Set long-lived immutable caching for versioned /static assets (?v=...)."""
+        response = await super().get_response(path, scope)
+        query_bytes = scope.get("query_string", b"")
+        if response.status_code == 200 and b"v=" in query_bytes:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
 
 
 @asynccontextmanager
@@ -165,6 +180,11 @@ async def unhandled_exception_handler(
     return web_ui.render_error_response(request, 500)
 
 
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount(
+    "/static",
+    VersionedStaticFiles(directory=str(STATIC_DIR)),
+    name="static",
+)
 app.include_router(api_routes.router)
 app.include_router(web_ui.router)
+app.add_middleware(GZipMiddleware, minimum_size=512)

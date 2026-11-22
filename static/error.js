@@ -13,10 +13,18 @@
 		"Service Error",
 		"The cat flap controller could not be reached.",
 	];
+	document.title = `${code} · ${title} — onlyCat(s)`;
 	const codeEl = document.getElementById("err-code");
 	const titleEl = document.getElementById("err-title");
 	const msgEl = document.getElementById("err-msg");
 	if (codeEl) codeEl.textContent = code;
 	if (titleEl) titleEl.textContent = title;
 	if (msgEl) msgEl.textContent = message;
+
+	const refreshBtn = document.getElementById("refresh-btn");
+	if (refreshBtn) {
+		refreshBtn.addEventListener("click", () => {
+			window.location.reload();
+		});
+	}
 })();

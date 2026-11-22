@@ -112,7 +112,7 @@ http:
       {{ end }}
 
     domain-iwatch-ui:
-      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
+      rule: 'Host(`{{ env "DOMAIN_NAME" }}`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`) || Path(`/metrics`))'
       entryPoints:
         - websecure
       priority: 350

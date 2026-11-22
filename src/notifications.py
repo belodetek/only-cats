@@ -16,7 +16,7 @@ from ultralytics.engine.results import Results
 # pylint: enable=import-error
 import config
 
-logger = logging.getLogger("signal-notify")
+logger = logging.getLogger(config.app_name)
 
 
 def _encode_attachment(file_path: Path, mime_type: str) -> str | None:

@@ -8,13 +8,15 @@ import tempfile
 import time
 from typing import NamedTuple, Optional
 
-logger = logging.getLogger("flasher-esp32")
+import config
 
 DEFAULT_BIN_PATH = "flash/firmware_sketch.ino.bin"
 APP_OFFSET = 0x10000  # Default factory / app0 partition offset
 DESC_OFFSET = 0x20  # Offset within image to esp_app_desc_t
 DESC_SIZE = 256  # Size of header block to read
 ESP_APP_DESC_MAGIC = 0xABCD5432
+
+logger = logging.getLogger(config.app_name)
 
 
 class AppDescriptor(NamedTuple):

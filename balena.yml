@@ -6,7 +6,7 @@ assets:
   repository:
     type: blob.asset
     data:
-      url: 'https://github.com/belodetek/only-cats'
+      url: https://github.com/belodetek/only-cats
   logo:
     type: blob.asset
     data:
