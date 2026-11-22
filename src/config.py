@@ -61,7 +61,7 @@ allowed_alarm_types: set[str] = {
     if item.strip()
 }
 
-model_weights_path: str = os.getenv("MODEL_WEIGHTS_PATH", "best_openvino_model")
+model_weights_path: str = os.getenv("MODEL_WEIGHTS_PATH", "weights/best_openvino_model")
 data_root: str = os.getenv("DATA_DIR", "/data")
 images_dir = os.path.join(data_root, os.getenv("IMAGES_DIR", "images"))
 labels_dir = os.path.join(data_root, os.getenv("LABELS_DIR", "labels"))

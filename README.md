@@ -13,7 +13,7 @@
 * D1: 1N4007 diode
 * C1: 2200uF 50V
 * R1: 10Ω 2W
-* Good quality, democratically priced and sustainably sourced V19.5+ DC power supply
+* Good quality, democratically priced and sustainably sourced 24VDC power supply
 * Intel NUC or compatible AARCH64/AMD64 compute
 
 ## software composition
@@ -22,11 +22,13 @@ The service includes a mobile-friendly Web Control UI, behind **Traefik** and
 authenticated via **oauth2-proxy** (GitHub OAuth) across both custom domain (`DOMAIN_NAME`)
 and balenaCloud public device URLs (`*.balena-devices.com`):
 
-- **Manual Lock / Unlock Overrides:** Force the cat-flap locked or unlocked persistently until changed or power-cycled.
+- **Manual Lock / Unlock Overrides:** Force the cat-flap locked or unlocked persistently
+  until changed or power-cycled.
 - **System Diagnostics:** Expandable drawer displaying service status.
 - **Training Images**: Captured images editor and exporter for fine-tuning the model.
 - **Live Camera Feed:** Reverse-proxied access to the Reolink camera web UI (`CAT_CAM_1`).
-- **[Pet-a-Manger] Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to link to the kibble-bot's web UI.
+- **[Pet-a-Manger] Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to
+  link to the kibble-bot's web UI.
 
 ## camera/webhooks event architecture
 
@@ -89,42 +91,42 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 ## physical wiring diagram
 
 ```text
- +---------------+                       +---------------------------------------+
- |   INTEL NUC   |                       |    5V RELAY MODULE (OPTO ISOLATED)    |
- +-------+-------+                       |    * Trigger Jumper on [H] (HIGH)     |
-         | USB-C                         |                                       |
-         v                               |  Control Header      Screw Terminals  |
- +---------------+                       |  --------------      ---------------  |
- |  SEEED XIAO   |                       |                                       |
- |   ESP32-C6    |                       |                                       |
- |            5V +---------------------->| [VCC]                                 |
- |   (GPIO0)  D0 +---------------------->| [IN]                                  |
- |           GND +---------------------->| [GND]                                 |
- +---------------+                       |                                       |
-                                         |                      [COM]  [NO] [NC] |
-                                         +------------------------+-----+--------+
-                                                                  |     |
-                                +---------------------------------+     |
-                                |                                       |
-                                |   +---( Junction A: Switched +24V )---+
-                                |   |
-                                |   |
-                                |   +---> [ R1: 10Ω 2W ] ---> ( C1 [+] )
-                                |   |                         (2200µF 50V)
-                                |   |                         ( C1 [-] ) ---+
-                                |   |                                       |
-                                |   +---> [|<| D1: 1N4007 ] ----------------+
-                                |   |     (White stripe toward Junction A)  |
-                                |   |                                       |
-                                |   +---> [ LED+resistor V+ ] ---[ V- ]-----+
-                                |   |                                       |
-                                |   +---> [ 24V Lock Solenoid V+ ] -[ V- ]--+
-                                |                                           |
- +---------------+              |                                           |
- |  19.5V / 24V  |              |                                           |
- |      PSU      |              |                                           |
- |          [V+] +--------------+                                           |
- |          [V-] +------------------( Junction B: Common 24V Return )-------+
+ +---------------+                   +---------------------------------------+
+ |   INTEL NUC   |                   |    5V RELAY MODULE (OPTO ISOLATED)    |
+ +-------+-------+                   |    * Trigger Jumper on [H] (HIGH)     |
+         | USB-C                     |                                       |
+         v                           |  Control Header      Screw Terminals  |
+ +---------------+                   |  --------------      ---------------  |
+ |  SEEED XIAO   |                   |                                       |
+ |   ESP32-C6    |                   |                                       |
+ |            5V +------------------>| [VCC]                                 |
+ |   (GPIO0)  D0 +------------------>| [IN]                                  |
+ |           GND +------------------>| [GND]                                 |
+ +---------------+                   |                                       |
+                                     |                      [COM]  [NO] [NC] |
+                                     +------------------------+-----+--------+
+                                                              |     |
+                            +---------------------------------+     |
+                            |                                       |
+                            |   +---( Junction A: Switched +24V )---+
+                            |   |
+                            |   |
+                            |   +---> [ R1: 10Ω 2W ] ---> ( C1 [+] )
+                            |   |                         (2200µF 50V)
+                            |   |                         ( C1 [-] ) ---+
+                            |   |                                       |
+                            |   +---> [|<| D1: 1N4007 ] ----------------+
+                            |   |     (White stripe toward Junction A)  |
+                            |   |                                       |
+                            |   +---> [ LED+resistor V+ ] ---[ V- ]-----+
+                            |   |                                       |
+                            |   +---> [ 24V Lock Solenoid V+ ] -[ V- ]--+
+                            |                                           |
+ +---------------+          |                                           |
+ |   24VDC PSU   |          |                                           |
+ |               |          |                                           |
+ |          [V+] +----------+                                           |
+ |          [V-] +--------------( Junction B: Common 24V Return )-------+
  +---------------+
 ```
 
