@@ -25,3 +25,9 @@ jobs:
         carate_road/only-cats-amd64
       docker_images: |
         ghcr.io/belodetek/only-cats
+      custom_test_matrix: >
+        {
+          "value": [
+            "hil"
+          ]
+        }

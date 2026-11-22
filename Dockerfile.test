@@ -27,4 +27,4 @@ COPY src/ ./src/
 COPY tests/ ./tests/
 COPY static/ ./static/
 COPY firmware/bin/firmware_sketch.ino.bin ./flash/
-COPY training/runs/latest/weights/ ./
+COPY training/runs/latest/weights/ ./weights/

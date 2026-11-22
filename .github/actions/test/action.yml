@@ -1,0 +1,31 @@
+# https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
+name: "Docker tests version scoped"
+description: "Custom test action to test each individual API version isolated in docker"
+# these inputs are always provided by flowzone, so they must always be defined on the composite action
+inputs:
+  json:
+    description: "JSON stringified object containing all the inputs from the calling workflow"
+    required: true
+  secrets:
+    description: "JSON stringified object containing all the secrets from the calling workflow"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run isolated tests for version ${{ env.matrix_value }}
+      shell: bash
+      if: ${{ env.matrix_value != '' }}
+      env:
+        TEST_VERSIONS: ${{ env.matrix_value }}
+      run: |
+        FW_VERSION=$(git rev-parse --short HEAD)
+
+        docker compose -f docker-compose.test.yml --profile HiL up \
+          --build \
+         --force-recreate \
+         --remove-orphans \
+         --abort-on-container-exit \
+         --exit-code-from sut-hil sut-hil
+
+        docker compose -f docker-compose.test.yml --profile HiL down --volumes

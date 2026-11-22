@@ -1,8 +1,17 @@
-# docker compose -f docker-compose.test.yml up --build --remove-orphans --abort-on-container-exit --exit-code-from sut
-# docker compose -f docker-compose.test.yml run --remove-orphans sut
+# Unit tests (default):
+#   docker compose -f docker-compose.test.yml up --build  --force-recreate --remove-orphans --abort-on-container-exit --exit-code-from sut
+#   docker compose -f docker-compose.test.yml run --rm --remove-orphans sut
+#   docker compose -f docker-compose.test.yml down --volumes
+#
+# HiL tests (QEMU ESP32-C6 + Real App + Browser):
+#   FW_VERSION=$(git rev-parse --short HEAD)
+#   docker compose -f docker-compose.test.yml --profile HiL up --build --force-recreate --remove-orphans --abort-on-container-exit --exit-code-from sut-hil sut-hil
+#   docker compose -f docker-compose.test.yml --profile HiL run --rm --use-aliases sut-hil
+#   docker compose -f docker-compose.test.yml --profile HiL down --volumes
 ---
 services:
   sut:
+    image: only-cats-sut:latest
     build:
       context: .
       dockerfile: Dockerfile.test
@@ -13,10 +22,11 @@ services:
       oauth2-proxy:
         condition: service_healthy
       mock-camera:
-        condition: service_started
+        condition: service_healthy
       error-pages:
         condition: service_started
     environment:
+      PYTHONPATH: /app/src:/app
       LOG_LEVEL: INFO
       DATA_DIR: /tmp/test-data
       MODEL_WEIGHTS_PATH: /tmp/test-data/nonexistent_weights
@@ -29,7 +39,7 @@ services:
       - ./static:/app/static
       - ./traefik/dynamic:/app/traefik/dynamic
     command: >
-      pytest -v --tb=short -o asyncio_default_fixture_loop_scope=function tests/
+      pytest -v --tb=short tests/unit
     networks:
       test-net:
         aliases:
@@ -106,29 +116,85 @@ services:
       - test-net
 
   mock-camera:
-    image: python:3.15-slim-bookworm
-    command:
-      - python3
-      - -c
-      - |
-        import ssl, subprocess
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-keyout', '/tmp/k.pem', '-out', '/tmp/c.pem', '-days', '1', '-nodes', '-subj', '/CN=mock-camera'], check=True)
-        class H(BaseHTTPRequestHandler):
-            def do_GET(self):
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/html')
-                self.end_headers()
-                self.wfile.write(f'<h1>Mock Camera ({self.path})</h1>'.encode())
-            def log_message(self, *a):
-                pass
-        httpd = HTTPServer(('0.0.0.0', 443), H)
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ctx.load_cert_chain('/tmp/c.pem', '/tmp/k.pem')
-        httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
-        httpd.serve_forever()
+    image: python:3.12-slim-bookworm
+    command: ["python3", "/app/app.py"]
+    volumes:
+      - ./tests/hil/mock-camera/app.py:/app/app.py:ro
+      - ./tests/hil/fixtures:/fixtures:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
     networks:
       - test-net
+
+# --- HIL Stack (only started with --profile HiL) ---
+  esp32c6-emulator:
+    profiles: ["HiL"]
+    build:
+      context: .
+      dockerfile: tests/hil/esp32c6-emulator/Dockerfile
+      args:
+        FW_VERSION: ${FW_VERSION:-hil}
+    environment:
+      - SERIAL_PORT=/run/vserial/ttyACM0
+      - PYTHONPATH=/app/src:/app
+    volumes:
+      - ./src:/app/src:ro
+      - vserial_run:/run/vserial
+      - /dev/pts:/dev/pts
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    networks:
+      - test-net
+
+  sut-hil:
+    profiles: ["HiL"]
+    image: only-cats-sut:latest
+    pull_policy: never
+    shm_size: 512m
+    depends_on:
+      esp32c6-emulator:
+        condition: service_healthy
+      mock-camera:
+        condition: service_healthy
+    # required for conftest overrides
+    environment:
+      - CAMERA_PASSWORD=mock-secret
+      - FIRMWARE_BIN_PATH=/tmp/skip_flash.bin
+      - IN_TRAINING=true
+      - LOCKOUT_DURATION_SEC=5.0
+      - PYTHONPATH=/app/src:/app
+      - SERIAL_PORT=/run/vserial/ttyACM0
+      - SERIAL_RECONNECT_BASE_DELAY_SEC=0.2
+      - SERIAL_RECONNECT_MAX_DELAY_SEC=1.0
+      - WEBHOOK_SECRET=another-secret
+    volumes:
+      - ./src:/app/src:ro
+      - ./static:/app/static:ro
+      - ./tests:/app/tests:ro
+      - ./training/runs/latest/weights/:/app/weights:ro
+      - /dev/pts:/dev/pts
+      - hil_data:/data
+      - vserial_run:/run/vserial
+    command:
+      - /bin/sh
+      - -c
+      - |
+        uvicorn only_cats:app --host 0.0.0.0 --port 8000 &
+        APP_PID=$$!
+        trap "kill $$APP_PID 2>/dev/null || true" EXIT
+        pytest -v --tb=short -m hil tests/hil
+    networks:
+      - test-net
+
+volumes:
+  vserial_run:
+  hil_data:
 
 networks:
   test-net:

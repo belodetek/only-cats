@@ -58,6 +58,7 @@ void setRelayState(bool energize) {
 
 void setup() {
   Serial.begin(115200);
+  Serial.setRxFIFOFull(1);
 
   pinMode(RELAY_PIN, OUTPUT);
   if (LED_PIN >= 0) {
