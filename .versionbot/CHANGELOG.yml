@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update solenoid lock link description"
+      hash: 1b5251ad7b63d976e9e138c94a550c1561e5a9d8
+      body: ""
+      footer: {}
+      author: Anton B.
+      nested: []
+  version: 0.1.1
+  title: ""
+  date: 2026-11-22T04:34:12.181Z
+- commits:
     - subject: "minor: Initial commit"
       hash: a49cd242dbcb1233a63ebc503f4a4acad8caf3f0
       body: ""
