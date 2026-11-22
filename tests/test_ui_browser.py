@@ -4,10 +4,12 @@
 import re
 
 import pytest
-from conftest import TRAEFIK_UPSTREAM_FILE, write_traefik_upstream
+from conftest import TRAEFIK_UPSTREAM_FILE, _patch_metrics_store, write_traefik_upstream
 from playwright.sync_api import Page, expect
 
 import config
+import dataset
+import metrics
 
 
 def _stub_external_cdns(page: Page, base_url: str) -> None:
@@ -318,12 +320,13 @@ def test_ui_warns_on_esp32_firmware_version_mismatch(page: Page, live_ui_server)
 def test_training_dataset_triage_flow_in_browser(
     page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes, viewport
 ):
-    """Verify training image browser, SVG box overlay, relabeling, and deletion."""
+    """Verify training image browser, SVG box overlay, relabeling to Prey (0), and deletion."""
     base_url, _ = live_ui_server
     images_dir, labels_dir = tmp_data_dirs
 
+    # Seed an unlabeled capture (0 boxes) so relabeling to Prey (0) creates a class-0 box
     (images_dir / "capture_01.jpg").write_bytes(sample_jpeg_bytes)
-    (labels_dir / "capture_01.txt").write_text("0 0.5 0.5 0.4 0.4\n", encoding="utf-8")
+    (labels_dir / "capture_01.txt").write_text("", encoding="utf-8")
 
     page.set_viewport_size(viewport)
     _stub_external_cdns(page, base_url)
@@ -336,18 +339,18 @@ def test_training_dataset_triage_flow_in_browser(
     card = page.locator("#dataset-grid [data-ds-idx='0']")
     expect(card).to_be_visible()
 
-    # 2. Tap card -> opens full-screen triage modal with green Cat SVG box
+    # 2. Tap card -> opens full-screen triage modal with 0 initial boxes
     card.click()
     expect(page.locator("#triage-modal")).to_be_visible()
-    svg_rect = page.locator("#triage-svg rect").first
-    expect(svg_rect).to_have_attribute("stroke", "#34d399")
+    expect(page.locator("#triage-svg rect")).to_have_count(0)
 
-    # 3. Tap 'Mark Prey (1)' -> updates YOLO label on disk and turns box rose (#f43f5e)
+    # 3. Tap 'Prey (0)' -> writes class 0 label on disk and renders rose (#f43f5e) SVG box
     page.locator("#btn-label-prey").click()
+    svg_rect = page.locator("#triage-svg rect").first
     expect(svg_rect).to_have_attribute("stroke", "#f43f5e")
-    assert (labels_dir / "capture_01.txt").read_text(encoding="utf-8").startswith("1 ")
+    assert (labels_dir / "capture_01.txt").read_text(encoding="utf-8").startswith("0 ")
 
-    # 4. Tap 'Delete' -> removes capture, closes modal, and resets badge to 0
+    # 4. Tap 'Delete Image' -> removes capture, closes modal, and resets badge to 0
     page.locator("#btn-triage-delete").click()
     expect(page.locator("#triage-modal")).to_be_hidden()
     expect(page.locator("#dataset-count-badge")).to_have_text("0")
@@ -357,7 +360,7 @@ def test_training_dataset_triage_flow_in_browser(
 def test_interactive_bounding_box_drag_draw_and_remove_in_browser(
     page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes
 ):
-    """Verify Edit Boxes mode supports dragging, drawing new boxes, and box removal."""
+    """Verify Edit Boxes mode supports dragging, drawing new Prey (0) boxes, and box removal."""
     base_url, _ = live_ui_server
     images_dir, labels_dir = tmp_data_dirs
 
@@ -379,7 +382,7 @@ def test_interactive_bounding_box_drag_draw_and_remove_in_browser(
     expect(page.locator("#box-edit-toolbar")).to_be_visible()
     expect(page.locator("#triage-svg [data-handle]")).to_have_count(4)
 
-    # Draw a second box (Prey, class 1) in the top-left corner of the SVG
+    # Draw a second box (Prey, class 0) in the top-left corner of the SVG
     svg_box = page.locator("#triage-svg").bounding_box()
     assert svg_box is not None
     page.mouse.move(
@@ -401,7 +404,7 @@ def test_interactive_bounding_box_drag_draw_and_remove_in_browser(
         (labels_dir / "edit_01.txt").read_text(encoding="utf-8").strip().splitlines()
     )
     assert len(lines) == 2
-    assert lines[1].startswith("1 ")
+    assert lines[1].startswith("0 ")
 
     # Remove the newly selected second box
     with page.expect_response(
@@ -488,3 +491,127 @@ def test_traefik_renders_friendly_502_page_when_backend_down(
                     break
                 page.wait_for_timeout(200)
         context.close()
+
+
+def test_metrics_drawer_opens_and_renders_telemetry(page, live_ui_server):
+    """Verify clicking Metrics button opens the telemetry drawer and loads /ui/metrics."""
+    base_url, _ = live_ui_server
+    page.goto(base_url, wait_until="networkidle")
+    drawer = page.locator("#telemetry-drawer")
+    expect(drawer).to_be_hidden()
+
+    page.locator("#btn-drawer").click()
+    expect(drawer).to_be_visible()
+
+    grid = page.locator("#drawer-metrics-grid")
+    expect(grid).to_contain_text("Total Locks")
+    expect(grid).to_contain_text("Total Unlocks")
+    expect(grid).to_contain_text("Prey Triggers")
+
+    page.locator("#btn-close-drawer").click()
+    expect(drawer).to_be_hidden()
+
+
+def test_metrics_drawer_visualizes_populated_telemetry(
+    page, live_ui_server, monkeypatch
+):
+    """Verify populated locks, durations, hourly bars, and prey detections render in UI."""
+    store = metrics.MetricsStore()
+
+    # Seed 2 completed locks of different durations (<15s and 1-5m)
+    store.record_lock(source="prey_detection")
+    with store._lock:  # pylint: disable=protected-access
+        store._active_lock_start -= 8.0  # pylint: disable=protected-access
+    store.record_unlock(source="expiry")
+
+    store.record_lock(source="admin_ui")
+    with store._lock:  # pylint: disable=protected-access
+        store._active_lock_start -= 120.0  # pylint: disable=protected-access
+    store.record_unlock(source="admin_ui")
+
+    # Seed prey detections
+    store.record_prey_detection([("prey", 0.94)], is_test=False)
+    store.record_prey_detection([("mouse", 0.86)], is_test=False)
+
+    _patch_metrics_store(monkeypatch, store)
+
+    base_url, _ = live_ui_server
+    page.goto(base_url, wait_until="networkidle")
+    page.locator("#btn-drawer").click()
+
+    drawer = page.locator("#telemetry-drawer")
+    expect(drawer).to_be_visible()
+
+    # 1. Verify KPI cards reflect seeded totals
+    grid = page.locator("#drawer-metrics-grid")
+    expect(grid).to_contain_text("Total Locks")
+    expect(grid).to_contain_text("2")
+    expect(grid).to_contain_text("Prey Triggers")
+
+    # 2. Verify 24-hour distribution chart rendered 24 hour columns
+    hourly_chart = page.locator("#drawer-hourly-chart")
+    expect(hourly_chart.locator("> div")).to_have_count(24)
+
+    # 3. Verify lock duration distribution renders buckets
+    buckets_list = page.locator("#drawer-buckets-list")
+    expect(buckets_list).to_contain_text("<15s")
+    expect(buckets_list).to_contain_text("1-5m")
+
+    # 4. Verify recent lock & detection feeds render seeded events
+    recent_locks = page.locator("#drawer-recent-locks")
+    expect(recent_locks).to_contain_text("prey_detection")
+    expect(recent_locks).to_contain_text("admin_ui")
+
+    recent_detections = page.locator("#drawer-recent-detections")
+    expect(recent_detections).to_contain_text("94%")
+
+
+def test_dataset_browser_overlays_json_metadata_on_thumbnails_and_triage(
+    page: Page, live_ui_server, sample_jpeg_bytes
+):
+    """Verify .json metadata renders on dataset thumbnails and in #triage-meta-bar."""
+    base_url, _ = live_ui_server
+    dataset.save_clean_capture(
+        stem="prey_20261122_101500_meta",
+        raw_image_bytes=sample_jpeg_bytes,
+        boxes=[dataset.YoloBox(cls=0, x=0.5, y=0.5, w=0.3, h=0.3)],
+        meta={
+            "timestamp_utc": "2026-11-22T17:15:00+00:00",
+            "event_type": "ANIMAL",
+            "lock_engaged": True,
+            "lockout_duration_sec": 180,
+            "fetch_ms": 38.4,
+            "infer_ms": 21.2,
+            "detections": [{"class": "prey", "confidence": 0.93}],
+        },
+    )
+
+    _stub_external_cdns(page, base_url)
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.locator("#btn-dataset").click()
+
+    dataset_panel = page.locator("#dataset-panel")
+    expect(dataset_panel).to_be_visible()
+
+    meta_pill = dataset_panel.locator(".ds-meta-pill").first
+    expect(meta_pill).to_be_visible()
+    expect(meta_pill).to_have_text("ANIMAL · 93%")
+
+    dataset_panel.locator("[data-ds-idx='0']").click()
+
+    triage_modal = page.locator("#triage-modal")
+    expect(triage_modal).to_be_visible()
+
+    meta_bar = page.locator("#triage-meta-bar")
+    expect(meta_bar).to_be_visible()
+    expect(meta_bar).to_contain_text("ANIMAL")
+    expect(meta_bar).to_contain_text("fetch 38.4ms")
+    expect(meta_bar).to_contain_text("infer 21.2ms")
+    expect(meta_bar).to_contain_text("Locked (180s)")
+    expect(meta_bar).to_contain_text("YOLO: prey 93%")
+
+    meta_json = page.locator("#triage-meta-json")
+    expect(meta_json).to_be_hidden()
+    page.locator("#btn-toggle-meta-json").click()
+    expect(meta_json).to_be_visible()
+    expect(meta_json).to_contain_text('"event_type": "ANIMAL"')

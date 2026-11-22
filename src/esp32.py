@@ -11,6 +11,7 @@ from typing import Callable, Optional
 import serial
 
 import config
+from metrics import METRICS
 
 # pylint: enable=import-error
 
@@ -85,6 +86,7 @@ class ESP32SerialController:
             with self.lock:
                 self.ser = new_ser
                 self.last_ack_at = time.time()
+            METRICS.serial_reconnects_total.inc()
             logger.info("Connected to ESP32 on %s at %d baud", self.port, self.baudrate)
             return True
         except (serial.SerialException, OSError) as exc:
@@ -151,6 +153,7 @@ class ESP32SerialController:
             self.state.pending_dispense = False
             self._write_locked(b"L")
             logger.warning(">>> ADMIN OVERRIDE: Door forced LOCKED.")
+        METRICS.record_lock(source="admin")
 
     def admin_unlock(self) -> None:
         """Force the lock open persistently until /lock or power cycle."""
@@ -160,6 +163,7 @@ class ESP32SerialController:
             self.state.pending_dispense = False
             self._write_locked(b"U")
             logger.warning(">>> ADMIN OVERRIDE: Door forced UNLOCKED.")
+        METRICS.record_unlock(source="admin")
 
     def start_worker(self) -> None:
         """Spawn the background thread that manages reconnection and lock keepalives."""
@@ -212,6 +216,7 @@ class ESP32SerialController:
                 elif self.state.pending_dispense:
                     self.state.pending_dispense = False
                     should_dispense = True
+                    METRICS.record_unlock(source="expiry")
                 else:
                     try:
                         self._drain_acks_locked()
@@ -255,6 +260,7 @@ class ESP32SerialController:
                 effective_duration,
                 time.strftime("%H:%M:%S", time.localtime(self.state.until)),
             )
+            METRICS.record_lock(source="prey_detection")
             return True
 
     def close(self) -> None:

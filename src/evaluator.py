@@ -13,9 +13,11 @@ import numpy as np
 
 # pylint: enable=import-error
 import config
+import dataset
+from metrics import METRICS
 from notifications import persist_and_notify
 from state import AppState
-from vision import persist_training_pair, run_inference
+from vision import run_inference
 
 logger = logging.getLogger(config.app_name)
 
@@ -33,8 +35,48 @@ def _extract_detections(
     return detected_classes, list(zip(detected_classes, confidences))
 
 
+def _yolo_boxes_from_result(top_result: Any) -> list[dataset.YoloBox]:
+    """Convert Ultralytics YOLO result boxes into validated YoloBox models."""
+    if top_result is None or top_result.boxes is None or len(top_result.boxes) == 0:
+        return []
+
+    boxes_xywhn = top_result.boxes.xywhn.cpu().numpy()
+    classes = top_result.boxes.cls.cpu().numpy().astype(int)
+
+    boxes: list[dataset.YoloBox] = []
+    for cls_id, coords in zip(classes, boxes_xywhn):
+        cx = round(float(coords[0]), 6)
+        cy = round(float(coords[1]), 6)
+        w = round(float(coords[2]), 6)
+        h = round(float(coords[3]), 6)
+        if 0.0 < w <= 1.0 and 0.0 < h <= 1.0:
+            boxes.append(dataset.YoloBox(cls=int(cls_id), x=cx, y=cy, w=w, h=h))
+    return boxes
+
+
+def _persist_clean_pair(
+    raw_bytes: bytes,
+    top_result: Any,
+    prefix: str = "prey",
+    meta: Optional[dict[str, Any]] = None,
+) -> tuple[str, str]:
+    """Persist metadata-stripped JPEG, YOLO .txt labels, and sidecar .json."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+    stem = f"{prefix}_{stamp}" if prefix else stamp
+    boxes = _yolo_boxes_from_result(top_result)
+    img_path = dataset.save_clean_capture(
+        stem=stem,
+        raw_image_bytes=raw_bytes,
+        boxes=boxes,
+        meta=meta,
+    )
+    label_path = img_path.parent.parent / "labels" / f"{img_path.stem}.txt"
+    return str(img_path), str(label_path)
+
+
 async def _handle_prey_match(
     state: AppState,
+    raw_bytes: bytes,
     img: np.ndarray,
     top_result: Any,
     is_test: bool,
@@ -60,11 +102,15 @@ async def _handle_prey_match(
             state.controller.admin_override,
         )
 
+    raw_override = state.controller.admin_override
+    admin_override = raw_override if isinstance(raw_override, str) else None
+
     event_data: dict[str, Any] = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "event_type": "TEST" if is_test else "ANIMAL",
         "lockout_duration_sec": int(config.lockout_duration_sec),
         "lock_engaged": bool(lock_engaged),
-        "admin_override": state.controller.admin_override,
+        "admin_override": admin_override,
         "fetch_ms": round(fetch_ms, 1),
         "infer_ms": round(infer_ms, 1),
         "detections": [
@@ -73,7 +119,14 @@ async def _handle_prey_match(
         ],
         **(webhook_event or {}),
     }
-    await persist_and_notify(img, top_result, event_data, persist_training_pair)
+
+    def _persist_with_meta(
+        _img: np.ndarray, result: Any, prefix: str = "prey"
+    ) -> tuple[str, str]:
+        return _persist_clean_pair(raw_bytes, result, prefix=prefix, meta=event_data)
+
+    METRICS.record_prey_detection(detections, is_test=is_test)
+    await persist_and_notify(img, top_result, event_data, _persist_with_meta)
 
 
 async def _run_evaluation_pipeline(
@@ -93,18 +146,21 @@ async def _run_evaluation_pipeline(
         t0 = time.perf_counter()
         resp = await state.http_client.get(snap_url)
         fetch_ms = (time.perf_counter() - t0) * 1000
+        METRICS.camera_fetch_seconds.observe(fetch_ms / 1000.0)
 
         if resp.status_code != 200:
             logger.error("Camera returned non-200 HTTP status: %d", resp.status_code)
             return
 
-        img_array = np.frombuffer(resp.content, dtype=np.uint8)
+        raw_bytes = resp.content
+        img_array = np.frombuffer(raw_bytes, dtype=np.uint8)
 
         t1 = time.perf_counter()
         img, results = await asyncio.to_thread(
             run_inference, state.model, img_array, config.conf_threshold
         )
         infer_ms = (time.perf_counter() - t1) * 1000
+        METRICS.yolo_infer_seconds.observe(infer_ms / 1000.0)
 
         if img is None:
             logger.error("Failed to decode snapshot bytes into image array.")
@@ -134,6 +190,7 @@ async def _run_evaluation_pipeline(
         if is_test or any(name in config.target_classes for name in detected_classes):
             await _handle_prey_match(
                 state,
+                raw_bytes,
                 img,
                 top_result,
                 is_test,
@@ -144,7 +201,20 @@ async def _run_evaluation_pipeline(
             )
         elif config.in_training:
             logger.info("IN_TRAINING enabled: persisting training pair.")
-            await asyncio.to_thread(persist_training_pair, img, top_result, "train")
+            train_meta: dict[str, Any] = {
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "event_type": "TRAINING",
+                "fetch_ms": round(fetch_ms, 1),
+                "infer_ms": round(infer_ms, 1),
+                "detections": [
+                    {"class": cls_name, "confidence": round(conf, 4)}
+                    for cls_name, conf in detections
+                ],
+                **(webhook_event or {}),
+            }
+            await asyncio.to_thread(
+                _persist_clean_pair, raw_bytes, top_result, "train", train_meta
+            )
 
     except httpx.RequestError as exc:
         logger.error("Network error communicating with Reolink camera: %s", exc)

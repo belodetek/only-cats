@@ -1,5 +1,8 @@
-"""Dataset inspection, thumbnail generation, YOLO label editing, and zip export."""
+"""Dataset inspection, metadata stripping, metadata storage, label editing, and zip export."""
 
+import io
+import json
+import logging
 import os
 import tempfile
 import zipfile
@@ -10,6 +13,7 @@ from typing import Any
 # pylint: disable=import-error
 import cv2
 from fastapi import HTTPException
+from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
 # pylint: enable=import-error
@@ -18,6 +22,8 @@ import config
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
 THUMB_MAX_WIDTH = 360
 _ZIP_CHUNK_SIZE = 64 * 1024
+
+logger = logging.getLogger(config.app_name)
 
 
 class YoloBox(BaseModel):  # pylint: disable=too-few-public-methods
@@ -34,6 +40,34 @@ class LabelUpdatePayload(BaseModel):  # pylint: disable=too-few-public-methods
     """Request payload for updating YOLO labels on a captured training image."""
 
     boxes: list[YoloBox]
+
+
+def strip_image_metadata(raw_bytes: bytes, quality: int = 92) -> bytes:
+    """Decode image bytes and re-encode clean pixel data with all EXIF/XMP/COM stripped."""
+    with Image.open(io.BytesIO(raw_bytes)) as img:
+        # Apply any EXIF orientation tag to pixels BEFORE stripping EXIF
+        clean_img = ImageOps.exif_transpose(img)
+        if clean_img.mode not in ("RGB", "L"):
+            clean_img = clean_img.convert("RGB")
+
+        out = io.BytesIO()
+        # Passing no exif=, icc_profile=, or pnginfo= writes a completely metadata-free file
+        clean_img.save(out, format="JPEG", quality=quality, optimize=True)
+        return out.getvalue()
+
+
+def _atomic_write_bytes(target_path: Path, data: bytes) -> None:
+    """Write bytes to target_path atomically via a temp file in the same directory."""
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=target_path.parent,
+        prefix=f".{target_path.name}.",
+        delete=False,
+    ) as tmp_file:
+        tmp_file.write(data)
+        tmp_path = Path(tmp_file.name)
+    os.replace(tmp_path, target_path)
 
 
 def _safe_image_path(filename: str) -> Path:
@@ -53,6 +87,66 @@ def _safe_image_path(filename: str) -> Path:
 def _label_path_for(image_path: Path) -> Path:
     """Return the corresponding YOLO .txt path inside config.labels_dir."""
     return Path(config.labels_dir).resolve() / f"{image_path.stem}.txt"
+
+
+def _meta_path_for(image_path: Path) -> Path:
+    """Return the corresponding metadata .json path inside config.labels_dir."""
+    return Path(config.labels_dir).resolve() / f"{image_path.stem}.json"
+
+
+def read_json_meta(meta_path: Path) -> dict[str, Any]:
+    """Read webhook/inference metadata JSON if present, returning {} on missing/corrupt."""
+    if not meta_path.is_file():
+        return {}
+    try:
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to parse JSON metadata at %s: %s", meta_path, exc)
+        return {}
+
+    if not isinstance(data, dict) or not data:
+        logger.warning("JSON metadata is empty at %s", meta_path)
+        return {}
+    return data
+
+
+def save_clean_capture(
+    stem: str,
+    raw_image_bytes: bytes,
+    boxes: list[YoloBox] | None = None,
+    meta: dict[str, Any] | None = None,
+    quality: int = 92,
+) -> Path:
+    """Persist metadata-stripped JPEG, YOLO .txt labels, and optional .json metadata."""
+    safe_stem = Path(stem).name
+    if not safe_stem or safe_stem != stem:
+        raise ValueError(f"Invalid capture stem: {stem!r}")
+
+    images_dir = Path(config.images_dir).resolve()
+    labels_dir = Path(config.labels_dir).resolve()
+    img_path = images_dir / f"{safe_stem}.jpg"
+    label_path = labels_dir / f"{safe_stem}.txt"
+    meta_path = labels_dir / f"{safe_stem}.json"
+
+    lines = [
+        f"{box.cls} {box.x:.6f} {box.y:.6f} {box.w:.6f} {box.h:.6f}"
+        for box in (boxes or [])
+    ]
+    label_content = ("\n".join(lines) + "\n") if lines else ""
+    _atomic_write_bytes(label_path, label_content.encode("utf-8"))
+
+    if not meta:
+        logger.warning("Empty JSON metadata provided for capture %s", safe_stem)
+
+    if meta is not None:
+        _atomic_write_bytes(
+            meta_path, (json.dumps(meta, indent=2, default=str) + "\n").encode("utf-8")
+        )
+
+    clean_bytes = strip_image_metadata(raw_image_bytes, quality=quality)
+    _atomic_write_bytes(img_path, clean_bytes)
+
+    return img_path
 
 
 def parse_yolo_labels(label_path: Path) -> list[dict[str, Any]]:
@@ -82,7 +176,7 @@ def parse_yolo_labels(label_path: Path) -> list[dict[str, Any]]:
 def list_dataset_items(
     filter_mode: str = "all", offset: int = 0, limit: int = 30
 ) -> dict[str, Any]:
-    """List captured images newest-first with parsed YOLO boxes and filter counts."""
+    """List captured images newest-first with YOLO boxes, metadata, and counts."""
     images_dir = Path(config.images_dir)
     if not images_dir.is_dir():
         return {"items": [], "total": 0, "counts": {"all": 0, "prey": 0, "empty": 0}}
@@ -97,7 +191,7 @@ def list_dataset_items(
         reverse=True,
     )
 
-    prey_ids = set(getattr(config, "prey_class_ids", {1}))
+    prey_ids = set(getattr(config, "prey_class_ids", {0}))
     counts = {"all": 0, "prey": 0, "empty": 0}
     matched: list[dict[str, Any]] = []
 
@@ -123,6 +217,7 @@ def list_dataset_items(
                 "timestamp": int(img_path.stat().st_mtime),
                 "has_prey": has_prey,
                 "boxes": boxes,
+                "meta": read_json_meta(_meta_path_for(img_path)),
                 "image_url": f"/ui/dataset/image/{img_path.name}",
                 "thumb_url": f"/ui/dataset/image/{img_path.name}?thumb=1",
             }
@@ -137,14 +232,18 @@ def list_dataset_items(
 
 # pylint: disable=no-member
 def get_image_bytes(filename: str, thumb: bool = False) -> bytes:
-    """Return full-resolution image bytes or a downscaled JPEG thumbnail."""
+    """Return metadata-stripped image bytes or a downscaled JPEG thumbnail."""
     img_path = _safe_image_path(filename)
+    raw = img_path.read_bytes()
     if not thumb:
-        return img_path.read_bytes()
+        try:
+            return strip_image_metadata(raw)
+        except OSError:
+            return raw
 
     frame = cv2.imread(str(img_path))
     if frame is None:
-        return img_path.read_bytes()
+        return raw
 
     height, width = frame.shape[:2]
     if width > THUMB_MAX_WIDTH:
@@ -154,7 +253,7 @@ def get_image_bytes(filename: str, thumb: bool = False) -> bytes:
         )
 
     ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
-    return encoded.tobytes() if ok else img_path.read_bytes()
+    return encoded.tobytes() if ok else raw
 
 
 # pylint: enable=no-member
@@ -164,37 +263,27 @@ def save_image_labels(filename: str, boxes: list[YoloBox]) -> list[dict[str, Any
     """Atomically write normalized YOLO label lines for an existing image."""
     img_path = _safe_image_path(filename)
     label_path = _label_path_for(img_path)
-    label_path.parent.mkdir(parents=True, exist_ok=True)
 
     lines = [
         f"{box.cls} {box.x:.6f} {box.y:.6f} {box.w:.6f} {box.h:.6f}" for box in boxes
     ]
     content = ("\n".join(lines) + "\n") if lines else ""
-
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=label_path.parent,
-        prefix=f".{label_path.name}.",
-        delete=False,
-    ) as tmp_file:
-        tmp_file.write(content)
-        tmp_path = Path(tmp_file.name)
-
-    os.replace(tmp_path, label_path)
+    _atomic_write_bytes(label_path, content.encode("utf-8"))
     return parse_yolo_labels(label_path)
 
 
 def delete_dataset_item(filename: str) -> None:
-    """Delete both the image file and its corresponding YOLO label file."""
+    """Delete the image file, its YOLO label file, and its metadata JSON."""
     img_path = _safe_image_path(filename)
     label_path = _label_path_for(img_path)
+    meta_path = _meta_path_for(img_path)
     img_path.unlink(missing_ok=True)
     label_path.unlink(missing_ok=True)
+    meta_path.unlink(missing_ok=True)
 
 
 def iter_dataset_zip() -> Iterator[bytes]:
-    """Stream a YOLO-formatted dataset ZIP via a temporary file without buffering in RAM."""
+    """Stream a YOLO-formatted dataset ZIP with metadata-stripped images."""
     images_dir = Path(config.images_dir)
     labels_dir = Path(config.labels_dir)
 
@@ -202,17 +291,22 @@ def iter_dataset_zip() -> Iterator[bytes]:
         with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_STORED) as zf:
             zf.writestr(
                 "data.yaml",
-                "path: .\ntrain: images\nval: images\nnames:\n  0: cat\n  1: prey\n",
+                "path: .\ntrain: images\nval: images\nnames:\n  0: prey\n",
             )
             if images_dir.is_dir():
                 for img_path in sorted(images_dir.iterdir()):
-                    if not img_path.is_file() or img_path.suffix.lower() not in {
-                        ".jpg",
-                        ".jpeg",
-                        ".png",
-                    }:
+                    if (
+                        not img_path.is_file()
+                        or img_path.suffix.lower() not in ALLOWED_IMAGE_EXTS
+                    ):
                         continue
-                    zf.write(img_path, arcname=f"images/{img_path.name}")
+                    raw = img_path.read_bytes()
+                    try:
+                        clean_bytes = strip_image_metadata(raw)
+                        zf.writestr(f"images/{img_path.stem}.jpg", clean_bytes)
+                    except OSError:
+                        zf.writestr(f"images/{img_path.name}", raw)
+
                     lbl_path = labels_dir / f"{img_path.stem}.txt"
                     lbl_text = (
                         lbl_path.read_text(encoding="utf-8")

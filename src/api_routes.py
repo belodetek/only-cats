@@ -7,11 +7,20 @@ from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 # pylint: disable=import-error
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+)
 
 # pylint: enable=import-error
 import config
 from evaluator import fetch_and_evaluate
+from metrics import METRICS
 from state import AppState
 from utils import resolve_camera_url, verify_secret
 
@@ -56,6 +65,13 @@ def _redact_headers(headers) -> dict[str, str]:
     }
 
 
+@router.get("/metrics", include_in_schema=False)
+async def prometheus_metrics() -> Response:
+    """Expose Prometheus metrics on standard /metrics path."""
+    payload, content_type = METRICS.render_prometheus()
+    return Response(content=payload, media_type=content_type)
+
+
 @router.post("/webhook/reolink")
 async def reolink_webhook(
     request: Request,
@@ -69,6 +85,7 @@ async def reolink_webhook(
 ) -> dict:
     """Handle incoming motion alert webhooks dispatched by the Reolink camera."""
     verify_secret(secret, x_webhook_secret)
+    METRICS.webhooks_total.labels(outcome="received").inc()
 
     client_host = request.client.host if request.client else None
     client_port = request.client.port if request.client else "unknown"
@@ -104,6 +121,7 @@ async def reolink_webhook(
             alarm_type or "UNKNOWN",
             sorted(config.allowed_alarm_types),
         )
+        METRICS.webhooks_total.labels(outcome="ignored").inc()
         return {
             "status": "ignored",
             "alarm_type": alarm_type or None,
@@ -112,6 +130,7 @@ async def reolink_webhook(
 
     deps: AppState = request.app.state.deps
     background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
+    METRICS.webhooks_total.labels(outcome="queued").inc()
     return {"status": "queued", "camera_url": camera_base_url}
 
 

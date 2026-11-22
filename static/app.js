@@ -10,6 +10,21 @@ document.addEventListener("DOMContentLoaded", () => {
 	const btnDispenser = document.getElementById("btn-dispenser");
 	const btnCloseInfo = document.getElementById("btn-close-info");
 
+	// Telemetry drawer elements
+	const btnDrawer = document.getElementById("btn-drawer");
+	const btnCloseDrawer = document.getElementById("btn-close-drawer");
+	const drawerBackdrop = document.getElementById("drawer-backdrop");
+	const telemetryDrawer = document.getElementById("telemetry-drawer");
+	const drawerMetricsGrid = document.getElementById("drawer-metrics-grid");
+	const drawerBucketsList = document.getElementById("drawer-buckets-list");
+	const drawerHourlyChart = document.getElementById("drawer-hourly-chart");
+	const drawerRecentLocks = document.getElementById("drawer-recent-locks");
+	const drawerRecentDetections = document.getElementById(
+		"drawer-recent-detections",
+	);
+	const drawerMetricsRaw = document.getElementById("drawer-metrics-raw");
+	const drawerUpdatedAt = document.getElementById("drawer-updated-at");
+
 	const statusBadge = document.getElementById("status-badge");
 	const statusDot = document.getElementById("status-dot");
 	const statusText = document.getElementById("status-text");
@@ -31,6 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
 	const triageLoading = document.getElementById("triage-loading");
 	const triageTitle = document.getElementById("triage-title");
 	const triageSubtitle = document.getElementById("triage-subtitle");
+	const triageMetaBar = document.getElementById("triage-meta-bar");
+	const triageMetaJson = document.getElementById("triage-meta-json");
 	const btnTriagePrev = document.getElementById("btn-triage-prev");
 	const btnTriageNext = document.getElementById("btn-triage-next");
 	const btnToggleBoxEdit = document.getElementById("btn-toggle-box-edit");
@@ -57,9 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
 		isLoadingImage: false,
 		editMode: false,
 		selectedBoxIndex: 0,
-		defaultDrawClass: 1,
+		defaultDrawClass: 0,
 		drag: null,
 	};
+
+	let drawerPollTimer = null;
 
 	function apiFetch(url, options = {}) {
 		const method = (options.method || "GET").toUpperCase();
@@ -72,15 +91,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	function renderFooterMeta() {
 		if (footerMeta) {
-			const parts = [];
+			footerMeta.replaceChildren();
+
+			const prefixParts = [];
 			if (footerState.appVersion) {
-				parts.push(`v${footerState.appVersion}`);
+				prefixParts.push(`v${footerState.appVersion}`);
 			}
 			if (footerState.firmwareVersion) {
-				parts.push(`fw ${footerState.firmwareVersion}`);
+				prefixParts.push(`fw ${footerState.firmwareVersion}`);
 			}
-			parts.push(`© belodetek ${currentYear}`);
-			footerMeta.textContent = parts.join(" · ");
+			prefixParts.push("© ");
+
+			footerMeta.appendChild(document.createTextNode(prefixParts.join(" · ")));
+
+			const brandLink = document.createElement("a");
+			brandLink.href = "http://belodetek.io";
+			brandLink.target = "_blank";
+			brandLink.rel = "noopener noreferrer";
+			brandLink.className = "hover:text-slate-300 transition-colors";
+			brandLink.textContent = "belodetek";
+			footerMeta.appendChild(brandLink);
+
+			footerMeta.appendChild(document.createTextNode(` ${currentYear}`));
 		}
 		if (footerRepoLink && footerState.repoUrl) {
 			footerRepoLink.href = footerState.repoUrl;
@@ -91,6 +123,9 @@ document.addEventListener("DOMContentLoaded", () => {
 	renderFooterMeta();
 
 	function showToast(message, variant = "info") {
+		if (!toast) {
+			return;
+		}
 		const styles = {
 			lock: "bg-rose-950/80 border-rose-700 text-rose-200",
 			unlock: "bg-emerald-950/80 border-emerald-700 text-emerald-200",
@@ -103,13 +138,17 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	function setLockControlsEnabled(enabled) {
-		btnLock.disabled = !enabled;
-		btnUnlock.disabled = !enabled;
+		if (btnLock) btnLock.disabled = !enabled;
+		if (btnUnlock) btnUnlock.disabled = !enabled;
 	}
 
 	function updateStatusBadge(health) {
 		const espConnected = Boolean(health.serial_connected);
 		setLockControlsEnabled(espConnected);
+
+		if (!statusBadge || !statusDot || !statusText) {
+			return;
+		}
 
 		if (!espConnected) {
 			statusBadge.className =
@@ -131,6 +170,218 @@ document.addEventListener("DOMContentLoaded", () => {
 			statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
 			statusText.textContent =
 				health.admin_override === "unlocked" ? "Unlocked (Admin)" : "Unlocked";
+		}
+	}
+
+	function formatUptime(sec) {
+		const total = Math.max(0, Number(sec) || 0);
+		const hrs = Math.floor(total / 3600);
+		const mins = Math.floor((total % 3600) / 60);
+		const rem = Math.floor(total % 60);
+		if (hrs > 0) {
+			return `${hrs}h ${mins}m`;
+		}
+		if (mins > 0) {
+			return `${mins}m ${rem}s`;
+		}
+		return `${rem}s`;
+	}
+
+	function formatTimestamp(isoStr) {
+		if (!isoStr) {
+			return "";
+		}
+		const dt = new Date(isoStr);
+		return Number.isNaN(dt.getTime()) ? isoStr : dt.toLocaleTimeString();
+	}
+
+	function escapeHtml(str) {
+		return String(str ?? "")
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
+			.replaceAll("'", "&#39;");
+	}
+
+	function renderDrawerMetrics(snapshot) {
+		const totals = snapshot.totals || {};
+
+		if (drawerMetricsGrid) {
+			const cards = [
+				["Uptime", formatUptime(snapshot.uptime_sec), "text-slate-100"],
+				["Total Locks", totals.locks ?? 0, "text-rose-400"],
+				["Total Unlocks", totals.unlocks ?? 0, "text-emerald-400"],
+				["Prey Triggers", totals.prey_detections ?? 0, "text-amber-400"],
+				[
+					"Active Lock",
+					`${Number(totals.active_lock_sec || 0).toFixed(1)}s`,
+					Number(totals.active_lock_sec || 0) > 0
+						? "text-rose-400"
+						: "text-slate-300",
+				],
+			];
+			drawerMetricsGrid.innerHTML = cards
+				.map(
+					([label, val, cls]) => `
+            <div class="bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2">
+              <div class="text-[11px] text-slate-400">${escapeHtml(label)}</div>
+              <div class="font-mono text-sm font-semibold ${cls} mt-0.5">${escapeHtml(val)}</div>
+            </div>`,
+				)
+				.join("");
+		}
+
+		if (drawerBucketsList) {
+			const buckets = snapshot.duration_buckets || [];
+			const maxCount = Math.max(1, ...buckets.map((b) => Number(b.count) || 0));
+			drawerBucketsList.innerHTML = buckets
+				.map((b) => {
+					const count = Number(b.count) || 0;
+					const pct =
+						count > 0 ? Math.max(4, Math.round((count / maxCount) * 100)) : 0;
+					return `
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-mono">${escapeHtml(b.label)}</span>
+                <span class="text-slate-400 font-mono">${count}</span>
+              </div>
+              <div class="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full bg-sky-500 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>`;
+				})
+				.join("");
+		}
+
+		if (drawerHourlyChart) {
+			const locksArr = snapshot.hourly?.locks || Array(24).fill(0);
+			const detsArr = snapshot.hourly?.detections || Array(24).fill(0);
+			const maxHourVal = Math.max(
+				1,
+				...locksArr.map((n) => Number(n) || 0),
+				...detsArr.map((n) => Number(n) || 0),
+			);
+			drawerHourlyChart.innerHTML = Array.from({ length: 24 }, (_, h) => {
+				const lVal = Number(locksArr[h]) || 0;
+				const dVal = Number(detsArr[h]) || 0;
+				const lHeight =
+					lVal > 0
+						? `${Math.max(8, Math.round((lVal / maxHourVal) * 100))}%`
+						: "2px";
+				const dHeight =
+					dVal > 0
+						? `${Math.max(8, Math.round((dVal / maxHourVal) * 100))}%`
+						: "2px";
+				return `
+          <div class="flex flex-col items-center gap-1 min-w-0" title="${String(h).padStart(2, "0")}:00 — ${lVal} locks, ${dVal} detections">
+            <div class="h-16 w-full flex items-end justify-center gap-0.5">
+              <div class="w-1.5 rounded-t ${lVal > 0 ? "bg-rose-500/90" : "bg-slate-800"}" style="height: ${lHeight}"></div>
+              <div class="w-1.5 rounded-t ${dVal > 0 ? "bg-amber-400/90" : "bg-slate-800"}" style="height: ${dHeight}"></div>
+            </div>
+            <span class="text-[9px] font-mono text-slate-500">${h % 6 === 0 ? String(h).padStart(2, "0") : ""}</span>
+          </div>`;
+			}).join("");
+		}
+
+		if (drawerRecentLocks) {
+			const locks = snapshot.recent_locks || [];
+			if (!locks.length) {
+				drawerRecentLocks.innerHTML =
+					'<div class="text-xs text-slate-500 py-2">No completed lock cycles yet.</div>';
+			} else {
+				drawerRecentLocks.innerHTML = [...locks]
+					.reverse()
+					.slice(0, 10)
+					.map(
+						(ev) => `
+              <div class="flex items-center justify-between gap-2 bg-slate-950/70 border border-slate-800/80 rounded-lg px-2.5 py-1.5 text-xs">
+                <div class="truncate">
+                  <span class="font-medium text-rose-300">${escapeHtml(ev.source || "lock")}</span>
+                  <span class="text-slate-500">→ ${escapeHtml(ev.unlock_source || "unlock")}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                  <span class="text-slate-200">${escapeHtml(ev.duration_sec)}s</span>
+                  <span class="text-slate-500">${escapeHtml(formatTimestamp(ev.timestamp))}</span>
+                </div>
+              </div>`,
+					)
+					.join("");
+			}
+		}
+
+		if (drawerRecentDetections) {
+			const dets = snapshot.recent_detections || [];
+			if (!dets.length) {
+				drawerRecentDetections.innerHTML =
+					'<div class="text-xs text-slate-500 py-2">No recent prey detections.</div>';
+			} else {
+				drawerRecentDetections.innerHTML = [...dets]
+					.reverse()
+					.slice(0, 10)
+					.map((ev) => {
+						const summary = (ev.detections || [])
+							.map(
+								(d) =>
+									`${escapeHtml(d.class)} (${Math.round((Number(d.confidence) || 0) * 100)}%)`,
+							)
+							.join(", ");
+						return `
+              <div class="flex items-center justify-between gap-2 bg-slate-950/70 border border-slate-800/80 rounded-lg px-2.5 py-1.5 text-xs">
+                <div class="truncate">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 mr-1.5">${escapeHtml(ev.event_type || "EVENT")}</span>
+                  <span class="text-slate-200">${summary || "Triggered"}</span>
+                </div>
+                <span class="shrink-0 font-mono text-[11px] text-slate-500">${escapeHtml(formatTimestamp(ev.timestamp))}</span>
+              </div>`;
+					})
+					.join("");
+			}
+		}
+
+		if (drawerMetricsRaw) {
+			drawerMetricsRaw.textContent = JSON.stringify(snapshot, null, 2);
+		}
+		if (drawerUpdatedAt) {
+			drawerUpdatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+		}
+	}
+
+	async function fetchDrawerMetrics() {
+		try {
+			const resp = await apiFetch("/ui/metrics", { cache: "no-store" });
+			if (!resp.ok) {
+				throw new Error(`HTTP ${resp.status}`);
+			}
+			const snapshot = await resp.json();
+			renderDrawerMetrics(snapshot);
+		} catch (err) {
+			if (drawerMetricsGrid) {
+				drawerMetricsGrid.innerHTML = `<div class="col-span-full text-xs text-rose-400 py-3">Failed to load metrics: ${err.message}</div>`;
+			}
+		}
+	}
+
+	function setDrawerOpen(open) {
+		if (!telemetryDrawer) {
+			return;
+		}
+		telemetryDrawer.classList.toggle("hidden", !open);
+		telemetryDrawer.setAttribute("aria-hidden", String(!open));
+		if (btnDrawer) {
+			btnDrawer.setAttribute("aria-expanded", String(open));
+		}
+		if (drawerBackdrop) {
+			drawerBackdrop.classList.toggle("hidden", !open);
+		}
+		if (drawerPollTimer) {
+			clearInterval(drawerPollTimer);
+			drawerPollTimer = null;
+		}
+		if (open) {
+			fetchDrawerMetrics();
+			fetchHealth(false);
+			drawerPollTimer = setInterval(fetchDrawerMetrics, 4000);
 		}
 	}
 
@@ -170,7 +421,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			renderFooterMeta();
 			updateStatusBadge(data);
 
-			if (revealPanel || !healthPanel.classList.contains("hidden")) {
+			if (
+				healthPanel &&
+				healthGrid &&
+				healthRaw &&
+				(revealPanel || !healthPanel.classList.contains("hidden"))
+			) {
 				const espConnected = Boolean(data.serial_connected);
 				const serviceHealthy = espConnected && data.status === "healthy";
 				const fwMismatch = Boolean(
@@ -233,10 +489,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 		} catch (err) {
 			setLockControlsEnabled(false);
-			statusBadge.className =
-				"flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900/60 border border-slate-800 text-slate-400 opacity-75";
-			statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
-			statusText.textContent = "Offline";
+			if (statusBadge && statusDot && statusText) {
+				statusBadge.className =
+					"flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900/60 border border-slate-800 text-slate-400 opacity-75";
+				statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+				statusText.textContent = "Offline";
+			}
 			if (revealPanel) {
 				showToast(`Failed to fetch /health: ${err.message}`, "error");
 			}
@@ -252,6 +510,9 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 			showToast(label, variant);
 			await fetchHealth(false);
+			if (telemetryDrawer && !telemetryDrawer.classList.contains("hidden")) {
+				await fetchDrawerMetrics();
+			}
 		} catch (err) {
 			showToast(`Command failed: ${err.message}`, "error");
 		}
@@ -320,38 +581,176 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	function updateTriageSubtitle() {
 		const item = datasetState.items[datasetState.activeIndex];
-		if (!item) {
+		if (!item || !triageSubtitle) {
 			return;
 		}
 		const selInfo =
 			datasetState.editMode && item.boxes.length
-				? ` · Selected #${datasetState.selectedBoxIndex + 1} (${item.boxes[datasetState.selectedBoxIndex]?.cls === 1 ? "Prey" : "Cat"})`
+				? ` · Selected #${datasetState.selectedBoxIndex + 1} (${item.boxes[datasetState.selectedBoxIndex]?.cls === 0 ? "Prey" : `Class ${item.boxes[datasetState.selectedBoxIndex]?.cls}`})`
 				: "";
 		triageSubtitle.textContent = `${datasetState.activeIndex + 1} of ${datasetState.items.length} · ${item.boxes.length} box(es)${selInfo}`;
 		if (btnRemoveSelectedBox) {
 			btnRemoveSelectedBox.disabled = item.boxes.length === 0;
 		}
 		if (boxEditHint) {
-			const clsName = datasetState.defaultDrawClass === 1 ? "Prey" : "Cat";
-			boxEditHint.textContent = `Draw mode: ${clsName} · Drag empty area or handles`;
+			boxEditHint.textContent =
+				"Draw mode: Prey (0) · Drag empty area or handles";
 		}
 	}
 
+	function formatMetaSummary(meta) {
+		if (!meta || typeof meta !== "object" || Object.keys(meta).length === 0) {
+			return "";
+		}
+		const eventType =
+			meta.event_type || meta.alarm_type || meta.alarm?.type || "";
+		const dets = Array.isArray(meta.detections)
+			? meta.detections
+			: Array.isArray(meta.inference?.detections)
+				? meta.inference.detections
+				: [];
+		const topDet = dets[0];
+		const confPct =
+			topDet && typeof topDet.confidence === "number"
+				? `${Math.round(topDet.confidence * 100)}%`
+				: "";
+		if (eventType && confPct) {
+			return `${eventType} · ${confPct}`;
+		}
+		return eventType || confPct || "META";
+	}
+
+	function renderTriageMeta(item) {
+		if (!triageMetaBar) {
+			return;
+		}
+		triageMetaBar.replaceChildren();
+		if (triageMetaJson) {
+			triageMetaJson.classList.add("hidden");
+			triageMetaJson.textContent = "";
+		}
+
+		const meta = item?.meta;
+		if (!meta || typeof meta !== "object" || Object.keys(meta).length === 0) {
+			triageMetaBar.classList.add("hidden");
+			return;
+		}
+
+		const pills = [];
+		const evType = meta.event_type || meta.alarm_type || meta.alarm?.type;
+		if (evType) {
+			const normalizedType = String(evType).toUpperCase();
+			pills.push({
+				label: String(evType),
+				cls:
+					normalizedType === "ANIMAL" || normalizedType === "PREY"
+						? "px-1.5 py-0.5 rounded bg-rose-950/90 border border-rose-800/80 text-rose-200 font-semibold"
+						: "px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 font-medium",
+			});
+		}
+
+		const rawTs = meta.timestamp_utc || meta.captured_at;
+		if (rawTs) {
+			const dt = new Date(rawTs);
+			const tsLabel = Number.isNaN(dt.getTime())
+				? String(rawTs)
+				: dt.toLocaleString([], {
+						month: "short",
+						day: "numeric",
+						hour: "2-digit",
+						minute: "2-digit",
+						second: "2-digit",
+					});
+			pills.push({ label: tsLabel, cls: "text-slate-400 font-mono" });
+		}
+
+		const fetchMs = meta.fetch_ms ?? meta.inference?.fetch_ms;
+		const inferMs = meta.infer_ms ?? meta.inference?.infer_ms;
+		if (fetchMs != null || inferMs != null) {
+			const timing = [
+				fetchMs != null ? `fetch ${fetchMs}ms` : null,
+				inferMs != null ? `infer ${inferMs}ms` : null,
+			]
+				.filter(Boolean)
+				.join(" · ");
+			pills.push({ label: timing, cls: "text-sky-300/90 font-mono" });
+		}
+
+		if (typeof meta.lock_engaged === "boolean") {
+			pills.push({
+				label: meta.lock_engaged
+					? `Locked (${meta.lockout_duration_sec ?? ""}s)`
+					: `Unlocked (${meta.admin_override || "no lock"})`,
+				cls: meta.lock_engaged ? "text-rose-300" : "text-slate-400",
+			});
+		}
+
+		const dets = Array.isArray(meta.detections)
+			? meta.detections
+			: Array.isArray(meta.inference?.detections)
+				? meta.inference.detections
+				: [];
+		if (dets.length > 0) {
+			const detText = dets
+				.map((d) => {
+					const name = d.class || d.label || `cls ${d.cls}`;
+					const pct =
+						typeof d.confidence === "number"
+							? ` ${Math.round(d.confidence * 100)}%`
+							: "";
+					return `${name}${pct}`;
+				})
+				.join(", ");
+			pills.push({
+				label: `YOLO: ${detText}`,
+				cls: "text-amber-300 font-mono",
+			});
+		}
+
+		for (const pill of pills) {
+			const span = document.createElement("span");
+			span.className = pill.cls;
+			span.textContent = pill.label;
+			triageMetaBar.appendChild(span);
+		}
+
+		if (triageMetaJson) {
+			triageMetaJson.textContent = JSON.stringify(meta, null, 2);
+			const toggleBtn = document.createElement("button");
+			toggleBtn.type = "button";
+			toggleBtn.id = "btn-toggle-meta-json";
+			toggleBtn.setAttribute("aria-expanded", "false");
+			toggleBtn.className =
+				"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-mono text-sky-300 cursor-pointer";
+			toggleBtn.textContent = "Meta JSON";
+			toggleBtn.addEventListener("click", () => {
+				const isHidden = triageMetaJson.classList.toggle("hidden");
+				toggleBtn.setAttribute("aria-expanded", String(!isHidden));
+			});
+			triageMetaBar.appendChild(toggleBtn);
+		}
+
+		triageMetaBar.classList.remove("hidden");
+	}
+
 	function renderSvgBoxes(boxes) {
+		if (!triageSvg) {
+			return;
+		}
 		const list = boxes || [];
 		if (datasetState.selectedBoxIndex >= list.length) {
 			datasetState.selectedBoxIndex = Math.max(0, list.length - 1);
 		}
 		triageSvg.innerHTML = list
 			.map((box, idx) => {
-				const isPrey = box.cls === 1;
+				const isPrey = box.cls === 0;
 				const isSelected =
 					datasetState.editMode && idx === datasetState.selectedBoxIndex;
-				const stroke = isPrey ? "#f43f5e" : "#34d399";
+				const stroke = isPrey ? "#f43f5e" : "#38bdf8";
 				const fill = isSelected
 					? isPrey
 						? "rgba(244, 63, 94, 0.16)"
-						: "rgba(52, 211, 153, 0.16)"
+						: "rgba(56, 189, 248, 0.16)"
 					: "transparent";
 				const { x1, y1, x2, y2 } = yoloToCorners(box);
 				const w = x2 - x1;
@@ -414,20 +813,22 @@ document.addEventListener("DOMContentLoaded", () => {
 		if (boxEditToolbar) {
 			boxEditToolbar.classList.toggle("hidden", !datasetState.editMode);
 		}
-		if (datasetState.editMode) {
-			triageSvg.classList.remove("pointer-events-none");
-			triageSvg.classList.add(
-				"pointer-events-auto",
-				"touch-none",
-				"cursor-crosshair",
-			);
-		} else {
-			triageSvg.classList.add("pointer-events-none");
-			triageSvg.classList.remove(
-				"pointer-events-auto",
-				"touch-none",
-				"cursor-crosshair",
-			);
+		if (triageSvg) {
+			if (datasetState.editMode) {
+				triageSvg.classList.remove("pointer-events-none");
+				triageSvg.classList.add(
+					"pointer-events-auto",
+					"touch-none",
+					"cursor-crosshair",
+				);
+			} else {
+				triageSvg.classList.add("pointer-events-none");
+				triageSvg.classList.remove(
+					"pointer-events-auto",
+					"touch-none",
+					"cursor-crosshair",
+				);
+			}
 		}
 		const item = datasetState.items[datasetState.activeIndex];
 		if (item) {
@@ -436,6 +837,9 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	function openTriageAt(index, force = false) {
+		if (!triageModal) {
+			return;
+		}
 		if (!force && datasetState.isLoadingImage) {
 			return;
 		}
@@ -450,20 +854,28 @@ document.addEventListener("DOMContentLoaded", () => {
 		datasetState.selectedBoxIndex = 0;
 		datasetState.drag = null;
 		const item = datasetState.items[index];
-		triageTitle.textContent = item.filename;
+		if (triageTitle) {
+			triageTitle.textContent = item.filename;
+		}
 		renderSvgBoxes(item.boxes);
+		renderTriageMeta(item);
 		triageModal.classList.remove("hidden");
 
-		const targetUrl = new URL(item.image_url, window.location.origin).href;
-		if (triageImg.src === targetUrl && triageImg.complete) {
-			setTriageImageLoading(false);
-		} else {
-			setTriageImageLoading(true);
-			triageImg.src = item.image_url;
+		if (triageImg) {
+			const targetUrl = new URL(item.image_url, window.location.origin).href;
+			if (triageImg.src === targetUrl && triageImg.complete) {
+				setTriageImageLoading(false);
+			} else {
+				setTriageImageLoading(true);
+				triageImg.src = item.image_url;
+			}
 		}
 	}
 
 	function renderDatasetGrid() {
+		if (!datasetGrid) {
+			return;
+		}
 		if (!datasetState.items.length) {
 			datasetGrid.innerHTML =
 				'<div class="col-span-full text-center text-xs text-slate-400 py-6">No captures in this filter.</div>';
@@ -474,14 +886,19 @@ document.addEventListener("DOMContentLoaded", () => {
 				const badge = item.has_prey
 					? '<span class="px-1.5 py-0.5 rounded bg-rose-600/90 text-white text-[10px]">Prey</span>'
 					: item.boxes.length
-						? '<span class="px-1.5 py-0.5 rounded bg-emerald-600/90 text-white text-[10px]">Cat</span>'
+						? `<span class="px-1.5 py-0.5 rounded bg-sky-600/90 text-white text-[10px]">Class ${escapeHtml(item.boxes[0].cls)}</span>`
 						: '<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">Empty</span>';
+				const metaText = formatMetaSummary(item.meta);
+				const metaOverlay = metaText
+					? `<div class="ds-meta-pill absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800/80 text-[10px] font-mono text-slate-200 backdrop-blur-[1px]">${escapeHtml(metaText)}</div>`
+					: "";
 				return `
           <button type="button" data-ds-idx="${idx}" class="group relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 text-left">
-            <img src="${item.thumb_url}" loading="lazy" alt="${item.filename}" class="w-full h-full object-cover" />
+            <img src="${escapeHtml(item.thumb_url)}" loading="lazy" alt="${escapeHtml(item.filename)}" class="w-full h-full object-cover" />
+            ${metaOverlay}
             <div class="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-slate-950/90 to-transparent flex items-center justify-between">
               ${badge}
-              <span class="text-[10px] text-slate-300 truncate max-w-[65%]">${item.filename}</span>
+              <span class="text-[10px] text-slate-300 truncate max-w-[65%]">${escapeHtml(item.filename)}</span>
             </div>
           </button>`;
 			})
@@ -489,6 +906,9 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	async function loadDataset(reveal = false) {
+		if (!datasetPanel || !datasetGrid) {
+			return;
+		}
 		if (reveal) {
 			datasetPanel.classList.remove("hidden");
 			datasetGrid.innerHTML =
@@ -532,7 +952,7 @@ document.addEventListener("DOMContentLoaded", () => {
 		}
 		const updated = await resp.json();
 		item.boxes = updated.boxes;
-		item.has_prey = updated.boxes.some((b) => b.cls === 1);
+		item.has_prey = updated.boxes.some((b) => b.cls === 0);
 		renderSvgBoxes(item.boxes);
 		renderDatasetGrid();
 		if (advanceAfter) {
@@ -547,32 +967,18 @@ document.addEventListener("DOMContentLoaded", () => {
 		if (!item) {
 			return;
 		}
-		if (mode === "cat") {
-			datasetState.defaultDrawClass = 0;
-		} else if (mode === "prey") {
-			datasetState.defaultDrawClass = 1;
-		}
+		datasetState.defaultDrawClass = 0;
 
 		let nextBoxes = [];
-		if (mode === "cat") {
+		if (mode === "prey") {
 			if (datasetState.editMode && item.boxes.length) {
 				nextBoxes = item.boxes.map((b, i) =>
 					i === datasetState.selectedBoxIndex ? { ...b, cls: 0 } : b,
 				);
 			} else {
 				nextBoxes = item.boxes.length
-					? item.boxes.map((b) => ({ ...b, cls: 0 }))
-					: [{ cls: 0, x: 0.5, y: 0.5, w: 0.5, h: 0.5 }];
-			}
-		} else if (mode === "prey") {
-			if (datasetState.editMode && item.boxes.length) {
-				nextBoxes = item.boxes.map((b, i) =>
-					i === datasetState.selectedBoxIndex ? { ...b, cls: 1 } : b,
-				);
-			} else {
-				nextBoxes = item.boxes.length
-					? item.boxes.map((b, i) => ({ ...b, cls: i === 0 ? 1 : b.cls }))
-					: [{ cls: 1, x: 0.5, y: 0.5, w: 0.35, h: 0.35 }];
+					? item.boxes.map((b, i) => ({ ...b, cls: i === 0 ? 0 : b.cls }))
+					: [{ cls: 0, x: 0.5, y: 0.5, w: 0.35, h: 0.35 }];
 			}
 		}
 
@@ -620,42 +1026,70 @@ document.addEventListener("DOMContentLoaded", () => {
 		}
 	}
 
-	btnLock.addEventListener("click", () =>
-		sendAdminCommand(
-			"/ui/lock",
-			"Admin override active: Door forced LOCKED.",
-			"lock",
-		),
-	);
+	if (btnLock) {
+		btnLock.addEventListener("click", () =>
+			sendAdminCommand(
+				"/ui/lock",
+				"Admin override active: Door forced LOCKED.",
+				"lock",
+			),
+		);
+	}
 
-	btnUnlock.addEventListener("click", () =>
-		sendAdminCommand(
-			"/ui/unlock",
-			"Admin override active: Door forced UNLOCKED.",
-			"unlock",
-		),
-	);
+	if (btnUnlock) {
+		btnUnlock.addEventListener("click", () =>
+			sendAdminCommand(
+				"/ui/unlock",
+				"Admin override active: Door forced UNLOCKED.",
+				"unlock",
+			),
+		);
+	}
 
-	btnInfo.addEventListener("click", () => fetchHealth(true));
+	if (btnInfo) {
+		btnInfo.addEventListener("click", () => fetchHealth(true));
+	}
 
-	btnCloseInfo.addEventListener("click", () => {
-		healthPanel.classList.add("hidden");
-	});
+	if (btnCloseInfo && healthPanel) {
+		btnCloseInfo.addEventListener("click", () => {
+			healthPanel.classList.add("hidden");
+		});
+	}
 
-	btnCamera.addEventListener("click", () => {
-		window.location.assign("/cctv1/");
-	});
+	if (btnDrawer) {
+		btnDrawer.addEventListener("click", () => {
+			const isHidden =
+				!telemetryDrawer || telemetryDrawer.classList.contains("hidden");
+			setDrawerOpen(isHidden);
+		});
+	}
 
-	if (btnDataset) {
+	if (btnCloseDrawer) {
+		btnCloseDrawer.addEventListener("click", () => setDrawerOpen(false));
+	}
+
+	if (drawerBackdrop) {
+		drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
+	}
+
+	if (btnCamera) {
+		btnCamera.addEventListener("click", () => {
+			window.location.assign("/cctv1/");
+		});
+	}
+
+	if (btnDataset && datasetPanel && datasetGrid) {
 		if (triageImg) {
 			triageImg.addEventListener("load", () => setTriageImageLoading(false));
 			triageImg.addEventListener("error", () => setTriageImageLoading(false));
 		}
 
 		btnDataset.addEventListener("click", () => loadDataset(true));
-		btnCloseDataset.addEventListener("click", () =>
-			datasetPanel.classList.add("hidden"),
-		);
+		if (btnCloseDataset) {
+			btnCloseDataset.addEventListener("click", () =>
+				datasetPanel.classList.add("hidden"),
+			);
+		}
 		document.querySelectorAll(".ds-filter-btn").forEach((btn) => {
 			btn.addEventListener("click", () => {
 				datasetState.filter = btn.dataset.dsFilter;
@@ -685,176 +1119,179 @@ document.addEventListener("DOMContentLoaded", () => {
 			btnRemoveSelectedBox.addEventListener("click", removeSelectedBox);
 		}
 
-		// Interactive SVG pointer gestures (draw new box, move box, resize corners)
-		triageSvg.addEventListener("pointerdown", (ev) => {
-			if (!datasetState.editMode || datasetState.isLoadingImage) {
-				return;
-			}
-			const item = datasetState.items[datasetState.activeIndex];
-			if (!item) {
-				return;
-			}
-			ev.preventDefault();
-			triageSvg.setPointerCapture(ev.pointerId);
-			const pt = clientToNorm(ev.clientX, ev.clientY);
-
-			const handleEl = ev.target.closest("[data-handle]");
-			if (handleEl) {
-				const idx = Number(handleEl.dataset.boxIdx);
-				const box = item.boxes[idx];
-				if (!box) {
+		if (triageSvg) {
+			// Interactive SVG pointer gestures (draw new box, move box, resize corners)
+			triageSvg.addEventListener("pointerdown", (ev) => {
+				if (!datasetState.editMode || datasetState.isLoadingImage) {
 					return;
 				}
-				datasetState.selectedBoxIndex = idx;
-				datasetState.drag = {
-					type: "resize",
-					corner: handleEl.dataset.handle,
-					boxIdx: idx,
-					origCorners: yoloToCorners(box),
-					cls: box.cls,
-					moved: false,
-				};
-				renderSvgBoxes(item.boxes);
-				return;
-			}
-
-			const rectEl = ev.target.closest("rect[data-box-idx]");
-			if (rectEl) {
-				const idx = Number(rectEl.dataset.boxIdx);
-				const box = item.boxes[idx];
-				if (!box) {
+				const item = datasetState.items[datasetState.activeIndex];
+				if (!item) {
 					return;
 				}
-				datasetState.selectedBoxIndex = idx;
-				datasetState.drag = {
-					type: "move",
-					boxIdx: idx,
-					startPt: pt,
-					origBox: { ...box },
-					moved: false,
-				};
-				renderSvgBoxes(item.boxes);
-				return;
-			}
+				ev.preventDefault();
+				triageSvg.setPointerCapture(ev.pointerId);
+				const pt = clientToNorm(ev.clientX, ev.clientY);
 
-			// Dragging empty area starts drawing a new bounding box
-			const newBox = cornersToYolo(
-				datasetState.defaultDrawClass,
-				pt.x,
-				pt.y,
-				pt.x + 0.015,
-				pt.y + 0.015,
-			);
-			item.boxes.push(newBox);
-			const newIdx = item.boxes.length - 1;
-			datasetState.selectedBoxIndex = newIdx;
-			datasetState.drag = {
-				type: "draw",
-				boxIdx: newIdx,
-				startPt: pt,
-				cls: datasetState.defaultDrawClass,
-				moved: false,
-			};
-			renderSvgBoxes(item.boxes);
-		});
-
-		triageSvg.addEventListener("pointermove", (ev) => {
-			const drag = datasetState.drag;
-			if (!drag || !datasetState.editMode) {
-				return;
-			}
-			const item = datasetState.items[datasetState.activeIndex];
-			if (!item?.boxes[drag.boxIdx]) {
-				return;
-			}
-			const pt = clientToNorm(ev.clientX, ev.clientY);
-			drag.moved = true;
-
-			if (drag.type === "move") {
-				const dx = pt.x - drag.startPt.x;
-				const dy = pt.y - drag.startPt.y;
-				const halfW = drag.origBox.w / 2;
-				const halfH = drag.origBox.h / 2;
-				item.boxes[drag.boxIdx] = {
-					...drag.origBox,
-					x: Number(
-						Math.min(1 - halfW, Math.max(halfW, drag.origBox.x + dx)).toFixed(
-							6,
-						),
-					),
-					y: Number(
-						Math.min(1 - halfH, Math.max(halfH, drag.origBox.y + dy)).toFixed(
-							6,
-						),
-					),
-				};
-			} else if (drag.type === "resize") {
-				let { x1, y1, x2, y2 } = drag.origCorners;
-				if (drag.corner.includes("w")) {
-					x1 = pt.x;
-				}
-				if (drag.corner.includes("e")) {
-					x2 = pt.x;
-				}
-				if (drag.corner.includes("n")) {
-					y1 = pt.y;
-				}
-				if (drag.corner.includes("s")) {
-					y2 = pt.y;
-				}
-				item.boxes[drag.boxIdx] = cornersToYolo(drag.cls, x1, y1, x2, y2);
-			} else if (drag.type === "draw") {
-				item.boxes[drag.boxIdx] = cornersToYolo(
-					drag.cls,
-					drag.startPt.x,
-					drag.startPt.y,
-					pt.x,
-					pt.y,
-				);
-			}
-
-			renderSvgBoxes(item.boxes);
-		});
-
-		async function finishBoxDrag(ev) {
-			const drag = datasetState.drag;
-			if (!drag) {
-				return;
-			}
-			datasetState.drag = null;
-			if (triageSvg.hasPointerCapture(ev.pointerId)) {
-				triageSvg.releasePointerCapture(ev.pointerId);
-			}
-			const item = datasetState.items[datasetState.activeIndex];
-			if (!item) {
-				return;
-			}
-			// Discard tiny accidental taps when starting a new box
-			if (drag.type === "draw") {
-				const box = item.boxes[drag.boxIdx];
-				if (!box || box.w < 0.025 || box.h < 0.025) {
-					item.boxes.splice(drag.boxIdx, 1);
-					datasetState.selectedBoxIndex = Math.max(0, item.boxes.length - 1);
+				const handleEl = ev.target.closest("[data-handle]");
+				if (handleEl) {
+					const idx = Number(handleEl.dataset.boxIdx);
+					const box = item.boxes[idx];
+					if (!box) {
+						return;
+					}
+					datasetState.selectedBoxIndex = idx;
+					datasetState.drag = {
+						type: "resize",
+						corner: handleEl.dataset.handle,
+						boxIdx: idx,
+						origCorners: yoloToCorners(box),
+						cls: box.cls,
+						moved: false,
+					};
 					renderSvgBoxes(item.boxes);
 					return;
 				}
+
+				const rectEl = ev.target.closest("rect[data-box-idx]");
+				if (rectEl) {
+					const idx = Number(rectEl.dataset.boxIdx);
+					const box = item.boxes[idx];
+					if (!box) {
+						return;
+					}
+					datasetState.selectedBoxIndex = idx;
+					datasetState.drag = {
+						type: "move",
+						boxIdx: idx,
+						startPt: pt,
+						origBox: { ...box },
+						moved: false,
+					};
+					renderSvgBoxes(item.boxes);
+					return;
+				}
+
+				// Dragging empty area starts drawing a new bounding box
+				const newBox = cornersToYolo(
+					datasetState.defaultDrawClass,
+					pt.x,
+					pt.y,
+					pt.x + 0.015,
+					pt.y + 0.015,
+				);
+				item.boxes.push(newBox);
+				const newIdx = item.boxes.length - 1;
+				datasetState.selectedBoxIndex = newIdx;
+				datasetState.drag = {
+					type: "draw",
+					boxIdx: newIdx,
+					startPt: pt,
+					cls: datasetState.defaultDrawClass,
+					moved: false,
+				};
+				renderSvgBoxes(item.boxes);
+			});
+
+			triageSvg.addEventListener("pointermove", (ev) => {
+				const drag = datasetState.drag;
+				if (!drag || !datasetState.editMode) {
+					return;
+				}
+				const item = datasetState.items[datasetState.activeIndex];
+				if (!item?.boxes[drag.boxIdx]) {
+					return;
+				}
+				const pt = clientToNorm(ev.clientX, ev.clientY);
+				drag.moved = true;
+
+				if (drag.type === "move") {
+					const dx = pt.x - drag.startPt.x;
+					const dy = pt.y - drag.startPt.y;
+					const halfW = drag.origBox.w / 2;
+					const halfH = drag.origBox.h / 2;
+					item.boxes[drag.boxIdx] = {
+						...drag.origBox,
+						x: Number(
+							Math.min(1 - halfW, Math.max(halfW, drag.origBox.x + dx)).toFixed(
+								6,
+							),
+						),
+						y: Number(
+							Math.min(1 - halfH, Math.max(halfH, drag.origBox.y + dy)).toFixed(
+								6,
+							),
+						),
+					};
+				} else if (drag.type === "resize") {
+					let { x1, y1, x2, y2 } = drag.origCorners;
+					if (drag.corner.includes("w")) {
+						x1 = pt.x;
+					}
+					if (drag.corner.includes("e")) {
+						x2 = pt.x;
+					}
+					if (drag.corner.includes("n")) {
+						y1 = pt.y;
+					}
+					if (drag.corner.includes("s")) {
+						y2 = pt.y;
+					}
+					item.boxes[drag.boxIdx] = cornersToYolo(drag.cls, x1, y1, x2, y2);
+				} else if (drag.type === "draw") {
+					item.boxes[drag.boxIdx] = cornersToYolo(
+						drag.cls,
+						drag.startPt.x,
+						drag.startPt.y,
+						pt.x,
+						pt.y,
+					);
+				}
+
+				renderSvgBoxes(item.boxes);
+			});
+
+			async function finishBoxDrag(ev) {
+				const drag = datasetState.drag;
+				if (!drag) {
+					return;
+				}
+				datasetState.drag = null;
+				if (triageSvg.hasPointerCapture(ev.pointerId)) {
+					triageSvg.releasePointerCapture(ev.pointerId);
+				}
+				const item = datasetState.items[datasetState.activeIndex];
+				if (!item) {
+					return;
+				}
+				// Discard tiny accidental taps when starting a new box
+				if (drag.type === "draw") {
+					const box = item.boxes[drag.boxIdx];
+					if (!box || box.w < 0.025 || box.h < 0.025) {
+						item.boxes.splice(drag.boxIdx, 1);
+						datasetState.selectedBoxIndex = Math.max(0, item.boxes.length - 1);
+						renderSvgBoxes(item.boxes);
+						return;
+					}
+				}
+				if (drag.moved || drag.type === "draw") {
+					await persistBoxes(item, item.boxes, false);
+				}
 			}
-			if (drag.moved || drag.type === "draw") {
-				await persistBoxes(item, item.boxes, false);
-			}
+
+			triageSvg.addEventListener("pointerup", finishBoxDrag);
+			triageSvg.addEventListener("pointercancel", finishBoxDrag);
 		}
 
-		triageSvg.addEventListener("pointerup", finishBoxDrag);
-		triageSvg.addEventListener("pointercancel", finishBoxDrag);
-
-		document
-			.getElementById("btn-close-triage")
-			.addEventListener("click", () => {
+		const btnCloseTriage = document.getElementById("btn-close-triage");
+		if (btnCloseTriage && triageModal) {
+			btnCloseTriage.addEventListener("click", () => {
 				setBoxEditMode(false);
 				setTriageImageLoading(false);
 				triageModal.classList.add("hidden");
 				datasetState.activeIndex = -1;
 			});
+		}
 		if (btnTriagePrev) {
 			btnTriagePrev.addEventListener("click", () =>
 				openTriageAt(Math.max(0, datasetState.activeIndex - 1)),
@@ -867,87 +1304,94 @@ document.addEventListener("DOMContentLoaded", () => {
 				),
 			);
 		}
-		document
-			.getElementById("btn-label-cat")
-			.addEventListener("click", () => relabelActiveItem("cat"));
-		document
-			.getElementById("btn-label-prey")
-			.addEventListener("click", () => relabelActiveItem("prey"));
-		document
-			.getElementById("btn-label-clear")
-			.addEventListener("click", () => relabelActiveItem("clear"));
-		document
-			.getElementById("btn-triage-delete")
-			.addEventListener("click", deleteActiveItem);
+		const btnLabelPrey = document.getElementById("btn-label-prey");
+		if (btnLabelPrey) {
+			btnLabelPrey.addEventListener("click", () => relabelActiveItem("prey"));
+		}
+		const btnLabelClear = document.getElementById("btn-label-clear");
+		if (btnLabelClear) {
+			btnLabelClear.addEventListener("click", () => relabelActiveItem("clear"));
+		}
+		const btnTriageDelete = document.getElementById("btn-triage-delete");
+		if (btnTriageDelete) {
+			btnTriageDelete.addEventListener("click", deleteActiveItem);
+		}
 
 		// Mobile horizontal swipe navigation in triage modal (disabled while editing or loading)
-		let touchStartX = 0;
-		triageStage.addEventListener(
-			"touchstart",
-			(ev) => {
-				if (datasetState.editMode || datasetState.isLoadingImage) {
-					return;
-				}
-				touchStartX = ev.changedTouches[0].screenX;
-			},
-			{ passive: true },
-		);
-		triageStage.addEventListener(
-			"touchend",
-			(ev) => {
-				if (datasetState.editMode || datasetState.isLoadingImage) {
-					return;
-				}
-				const dx = ev.changedTouches[0].screenX - touchStartX;
-				if (Math.abs(dx) > 48) {
-					openTriageAt(
-						dx < 0
-							? Math.min(
-									datasetState.items.length - 1,
-									datasetState.activeIndex + 1,
-								)
-							: Math.max(0, datasetState.activeIndex - 1),
-					);
-				}
-			},
-			{ passive: true },
-		);
+		if (triageStage) {
+			let touchStartX = 0;
+			triageStage.addEventListener(
+				"touchstart",
+				(ev) => {
+					if (datasetState.editMode || datasetState.isLoadingImage) {
+						return;
+					}
+					touchStartX = ev.changedTouches[0].screenX;
+				},
+				{ passive: true },
+			);
+			triageStage.addEventListener(
+				"touchend",
+				(ev) => {
+					if (datasetState.editMode || datasetState.isLoadingImage) {
+						return;
+					}
+					const dx = ev.changedTouches[0].screenX - touchStartX;
+					if (Math.abs(dx) > 48) {
+						openTriageAt(
+							dx < 0
+								? Math.min(
+										datasetState.items.length - 1,
+										datasetState.activeIndex + 1,
+									)
+								: Math.max(0, datasetState.activeIndex - 1),
+						);
+					}
+				},
+				{ passive: true },
+			);
+		}
 
-		// Desktop keyboard shortcuts while modal is open
-		document.addEventListener("keydown", (ev) => {
-			if (triageModal.classList.contains("hidden")) {
+		loadDataset(false);
+	}
+
+	// Escape closes open drawer first, then triage modal
+	document.addEventListener("keydown", (ev) => {
+		if (ev.key === "Escape") {
+			if (telemetryDrawer && !telemetryDrawer.classList.contains("hidden")) {
+				setDrawerOpen(false);
 				return;
 			}
-			if (ev.key === "ArrowLeft" && !datasetState.isLoadingImage) {
-				openTriageAt(Math.max(0, datasetState.activeIndex - 1));
-			}
-			if (ev.key === "ArrowRight" && !datasetState.isLoadingImage) {
-				openTriageAt(
-					Math.min(datasetState.items.length - 1, datasetState.activeIndex + 1),
-				);
-			}
-			if (ev.key === "e" || ev.key === "E") {
-				setBoxEditMode(!datasetState.editMode);
-			}
-			if (ev.key === "1") {
-				relabelActiveItem("cat");
-			}
-			if (ev.key === "2") {
-				relabelActiveItem("prey");
-			}
-			if (ev.key === "0") {
-				relabelActiveItem("clear");
-			}
-			if (ev.key === "Escape") {
+			if (triageModal && !triageModal.classList.contains("hidden")) {
 				setBoxEditMode(false);
 				setTriageImageLoading(false);
 				triageModal.classList.add("hidden");
 				datasetState.activeIndex = -1;
+				return;
 			}
-		});
+		}
 
-		loadDataset(false);
-	}
+		if (!triageModal || triageModal.classList.contains("hidden")) {
+			return;
+		}
+		if (ev.key === "ArrowLeft" && !datasetState.isLoadingImage) {
+			openTriageAt(Math.max(0, datasetState.activeIndex - 1));
+		}
+		if (ev.key === "ArrowRight" && !datasetState.isLoadingImage) {
+			openTriageAt(
+				Math.min(datasetState.items.length - 1, datasetState.activeIndex + 1),
+			);
+		}
+		if (ev.key === "e" || ev.key === "E") {
+			setBoxEditMode(!datasetState.editMode);
+		}
+		if (ev.key === "1" || ev.key === "p" || ev.key === "P") {
+			relabelActiveItem("prey");
+		}
+		if (ev.key === "0") {
+			relabelActiveItem("clear");
+		}
+	});
 
 	// Initial status & config fetch
 	loadUiConfig();

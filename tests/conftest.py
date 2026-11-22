@@ -15,8 +15,13 @@ import numpy as np
 import pytest
 import uvicorn
 
+import api_routes
 import config
+import esp32
+import evaluator
+import metrics
 import only_cats
+import web_ui
 
 TRAEFIK_UPSTREAM_FILE = (
     Path(__file__).resolve().parent.parent
@@ -38,6 +43,12 @@ def write_traefik_upstream(url: str) -> Path:
         encoding="utf-8",
     )
     return TRAEFIK_UPSTREAM_FILE
+
+
+def _patch_metrics_store(monkeypatch, store: metrics.MetricsStore) -> None:
+    """Bind an isolated MetricsStore across metrics and all importing modules."""
+    for mod in (metrics, esp32, api_routes, web_ui, evaluator):
+        monkeypatch.setattr(mod, "METRICS", store)
 
 
 @pytest.fixture(autouse=True)

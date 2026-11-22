@@ -68,7 +68,7 @@ http:
       service: cat-cam-1-svc
 
     balena-iwatch-ui:
-      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`))'
+      rule: 'HostRegexp(`^.+\.balena-devices\.com$`) && (Path(`/`) || PathPrefix(`/ui`) || PathPrefix(`/static`) || Path(`/health`) || Path(`/health`))'
       entryPoints:
         - web
       priority: 350

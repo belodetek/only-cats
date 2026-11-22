@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from PIL import Image
 
 # pylint: enable=import-error
 import config
@@ -37,12 +38,14 @@ def test_list_filter_and_thumbnail_generation(tmp_data_dirs):
     """Verify newest-first listing, prey/empty filters, and downscaled thumbnails."""
     images_dir, labels_dir = tmp_data_dirs
 
-    _write_sample_capture(images_dir, labels_dir, "cat_only.jpg", "0 0.5 0.5 0.4 0.4\n")
+    _write_sample_capture(
+        images_dir, labels_dir, "other_cls.jpg", "1 0.5 0.5 0.4 0.4\n"
+    )
     _write_sample_capture(
         images_dir,
         labels_dir,
         "prey_hit.jpg",
-        "0 0.4 0.5 0.3 0.4\n1 0.7 0.6 0.1 0.1\n",
+        "0 0.7 0.6 0.1 0.1\n1 0.4 0.5 0.3 0.4\n",
     )
     _write_sample_capture(images_dir, labels_dir, "unlabeled.jpg", None)
 
@@ -79,23 +82,23 @@ def test_dataset_api_relabel_delete_and_zip_export(tmp_data_dirs):
     """Verify PUT labels, GET export.zip, and DELETE item endpoints end-to-end."""
     images_dir, labels_dir = tmp_data_dirs
 
-    _write_sample_capture(images_dir, labels_dir, "frame_01.jpg", "0 0.5 0.5 0.4 0.4\n")
+    _write_sample_capture(images_dir, labels_dir, "frame_01.jpg", "1 0.5 0.5 0.4 0.4\n")
     _write_sample_capture(images_dir, labels_dir, "frame_02.jpg", None)
 
     client = TestClient(only_cats.app, headers={"X-Requested-With": "fetch"})
 
-    # Relabel frame_01.jpg to class 1 (prey)
+    # Relabel frame_01.jpg to class 0 (prey)
     put_resp = client.put(
         "/ui/dataset/labels/frame_01.jpg",
-        json={"boxes": [{"cls": 1, "x": 0.25, "y": 0.35, "w": 0.2, "h": 0.2}]},
+        json={"boxes": [{"cls": 0, "x": 0.25, "y": 0.35, "w": 0.2, "h": 0.2}]},
     )
     assert put_resp.status_code == 200
-    assert put_resp.json()["boxes"][0]["cls"] == 1
-    assert "1 0.250000 0.350000 0.200000 0.200000" in (
+    assert put_resp.json()["boxes"][0]["cls"] == 0
+    assert "0 0.250000 0.350000 0.200000 0.200000" in (
         labels_dir / "frame_01.txt"
     ).read_text(encoding="utf-8")
 
-    # Export ZIP archive
+    # Export ZIP archive and verify single-class 0: prey data.yaml
     zip_resp = client.get("/ui/dataset/export.zip")
     assert zip_resp.status_code == 200
     assert zip_resp.headers["content-type"] == "application/zip"
@@ -108,9 +111,42 @@ def test_dataset_api_relabel_delete_and_zip_export(tmp_data_dirs):
             "images/frame_02.jpg",
             "labels/frame_02.txt",
         }.issubset(names)
+        data_yaml = zf.read("data.yaml").decode("utf-8")
+        assert "0: prey" in data_yaml
+        assert "1:" not in data_yaml
 
     # Delete frame_01.jpg and verify both image and label are removed
     del_resp = client.delete("/ui/dataset/items/frame_01.jpg")
     assert del_resp.status_code == 200
     assert not (images_dir / "frame_01.jpg").exists()
     assert not (labels_dir / "frame_01.txt").exists()
+
+
+def test_dataset_api_surfaces_metadata_and_strips_exif_on_serve(tmp_data_dirs):
+    """Verify GET /ui/dataset/items returns JSON metadata and image endpoint strips EXIF."""
+    images_dir, labels_dir = tmp_data_dirs
+
+    # Write a legacy JPEG with EXIF directly into images_dir + a metadata JSON
+    img = Image.new("RGB", (32, 32), color=(80, 140, 200))
+    exif = Image.Exif()
+    exif[272] = "LEGACY-CAM-SERIAL"
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif.tobytes())
+    (images_dir / "legacy_01.jpg").write_bytes(buf.getvalue())
+    (labels_dir / "legacy_01.json").write_text(
+        '{"event_type": "TEST", "infer_ms": 14.2}', encoding="utf-8"
+    )
+
+    client = TestClient(only_cats.app)
+
+    items_resp = client.get("/ui/dataset/items?filter=all")
+    assert items_resp.status_code == 200
+    items = items_resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["meta"] == {"event_type": "TEST", "infer_ms": 14.2}
+
+    img_resp = client.get("/ui/dataset/image/legacy_01.jpg")
+    assert img_resp.status_code == 200
+    assert b"LEGACY-CAM-SERIAL" not in img_resp.content
+    with Image.open(io.BytesIO(img_resp.content)) as served:
+        assert len(served.getexif()) == 0

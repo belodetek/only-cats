@@ -27,6 +27,7 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 - **System Diagnostics:** Expandable drawer displaying service status.
 - **Training Images**: Captured images editor and exporter for fine-tuning the model.
 - **Live Camera Feed:** Reverse-proxied access to the Reolink camera web UI (`CAT_CAM_1`).
+- **Prometheus Metrics:** Built-in visualisation of runtime (in-memory) metrics.
 - **[Pet-a-Manger] Shortcut:** Dynamically appears when `DISPENSER_URL` is configured, to
   link to the kibble-bot's web UI.
 
@@ -38,7 +39,7 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 |  (IP / Local)      |                |   (FastAPI on Port 8000   |
 +-----+--------------+                +-----------+---------------+
       |                                           |
-      | 1. Motion Detected                        |
+      | 1. Motion Detected (ANIMAL)               |
       |    POST /webhook/reolink                  |
       |    (JSON payload: event alarm)            |
       +------------------------------------------>| [reolink_webhook]
@@ -63,29 +64,35 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
                                                   |    Predict bounding boxes
                                                   |
                                                   |
-                                                  |
                                            [Prey Detected?]
-                                            /           \
-                                      YES  /             \  NO
-                                          v               v
-                         +--------------------+     +-------------------+
-                         | 7a. Trigger Lock   |     | 7b. Discard Frame |
-                         |     Hold b'L' loop |     |     No lock state |
-                         |     for 300 sec    |     |     change        |
-                         +-+----------------+-+     +-------------------+
-                           |                |
-                           v                v
-      +-----------------------+          +-----------------------------+
-      | 8. BackgroundTasks    |          | 8.1 trigger snack dispenser |
-      |    Offload Disk I/O   |          |     on_lockout_expired      |
-      +-+-------------------+-+          +-----------------------------+
-        |                   |
-        v                   v
-+------------------+     +---------------------+
-| 9. Signal notify |     | 9.1 Persist Dataset |
-+------------------+     | /data/images/*.jpg  |
-                         | /data/labels/*.txt  |
-                         +---------------------+
+                                            /            \
+                                      YES  /              \  NO
+                                          v                v
+                         +--------------------+     [IN_TRAINING?]
+                         | 7a. Trigger Lock   |       /        \
+                         |     Hold b'L' loop |  YES /          \ NO
+                         |     for 300 sec    |     v            v
+                         +-+----------------+-+  +---------+  +-------------------+
+                           |                |    | 7b. No  |  | 7c. Discard Frame |
+                           v                |    | lock    |  |     No lock state |
+      +-----------------------+             |    | change  |  |     change        |
+      | 8. BackgroundTasks    |             |    +----+----+  +-------------------+
+      |    Offload Disk I/O   |             |         |
+      +-+-------------------+-+             v         |
+        |                   |   +------------------+  |
+        v                   |   | 8.1 Snack Disp.  |  |
++------------------+        |   | on_lockout_exp.  |  |
+| 9. Signal notify |        |   +------------------+  |
++------------------+        |                         |
+                            +------------+------------+
+                                         |
+                                         v
+                              +---------------------+
+                              | 9.1 Persist Dataset |
+                              | /data/images/*.jpg  |
+                              | /data/labels/*.txt  |
+                              | /data/labels/*.json |
+                              +---------------------+
 ```
 
 ## physical wiring diagram

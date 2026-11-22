@@ -18,6 +18,7 @@ from dataset import (
     list_dataset_items,
     save_image_labels,
 )
+from metrics import METRICS
 
 # pylint: enable=import-error
 
@@ -90,6 +91,12 @@ async def ui_error_page(request: Request, code: int) -> HTMLResponse:
     return render_error_response(
         request, safe_code
     )  # returns HTML when Accept includes text/html
+
+
+@router.get("/ui/metrics")
+async def ui_metrics_snapshot() -> dict:
+    """Return JSON telemetry snapshot for the Web UI drawer."""
+    return METRICS.snapshot_json()
 
 
 @router.get("/ui/config")

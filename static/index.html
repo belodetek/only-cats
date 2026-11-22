@@ -14,33 +14,47 @@
 	<body
 		class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-8"
 	>
-		<!-- Header -->
+        <!-- Header -->
 		<header
-			class="w-full max-w-xl flex items-center justify-between border-b border-slate-800 pb-4"
+			class="w-full max-w-xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-2.5 border-b border-slate-800 pb-4"
 		>
-			<div class="flex items-center gap-3">
+			<div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
 				<img
 					src="/static/logo.png"
 					alt="Logo"
-					class="w-10 h-10 rounded-lg object-contain bg-slate-900 p-1 border border-slate-800"
+					class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg object-contain bg-slate-900 p-1 border border-slate-800 shrink-0"
 				>
-				<div>
-					<h1 class="text-lg sm:text-xl font-semibold tracking-tight">
+				<div class="min-w-0">
+					<h1 class="text-base sm:text-xl font-semibold tracking-tight truncate">
 						onlyCat(s)
 					</h1>
-					<p class="text-xs text-slate-400">No Contraband</p>
+					<p class="text-[11px] sm:text-xs text-slate-400 truncate">No Contraband</p>
 				</div>
 			</div>
 
-			<div
-				id="status-badge"
-				class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-300"
-			>
-				<span
-					id="status-dot"
-					class="w-2.5 h-2.5 rounded-full bg-slate-500"
-				></span>
-				<span id="status-text">Checking...</span>
+			<div class="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+				<button
+					id="btn-drawer"
+					type="button"
+					aria-label="Metrics"
+					aria-expanded="false"
+					aria-controls="telemetry-drawer"
+					class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 cursor-pointer transition-colors"
+				>
+					<i data-lucide="bar-chart-2" class="w-3.5 h-3.5 text-sky-400 shrink-0"></i>
+					<span class="hidden min-[380px]:inline">Metrics</span>
+				</button>
+
+				<div
+					id="status-badge"
+					class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-300"
+				>
+					<span
+						id="status-dot"
+						class="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0"
+					></span>
+					<span id="status-text" class="whitespace-nowrap">Checking...</span>
+				</div>
 			</div>
 		</header>
 
@@ -167,69 +181,64 @@
 				></pre>
 			</section>
 
-
-		<!-- Dataset Browser Drawer -->
-		<section
-			id="dataset-panel"
-			class="hidden w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-5 mb-4"
-		>
-			<div class="flex items-center justify-between gap-2 mb-3">
-				<div class="flex items-center gap-2 text-sm font-semibold text-sky-400">
-					<i data-lucide="database" class="w-4 h-4"></i>
-					<span>Training Captures</span>
+			<!-- Dataset Browser Drawer -->
+			<section
+				id="dataset-panel"
+				class="hidden w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-5 mb-4"
+			>
+				<div class="flex items-center justify-between gap-2 mb-3">
+					<div class="flex items-center gap-2 text-sm font-semibold text-sky-400">
+						<i data-lucide="database" class="w-4 h-4"></i>
+						<span>Training Captures</span>
+					</div>
+					<div class="flex items-center gap-3">
+						<a
+							href="/ui/dataset/export.zip"
+							class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+						>
+							Export ZIP
+						</a>
+						<button
+							id="btn-close-dataset"
+							type="button"
+							class="text-xs text-slate-400 hover:text-slate-200"
+						>
+							Hide
+						</button>
+					</div>
 				</div>
-				<div class="flex items-center gap-3">
-					<a
-						href="/ui/dataset/export.zip"
-						class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
-					>
-						Export ZIP
-					</a>
+
+				<!-- Filter Chips -->
+				<div class="flex gap-2 mb-3 overflow-x-auto pb-1">
 					<button
-						id="btn-close-dataset"
 						type="button"
-						class="text-xs text-slate-400 hover:text-slate-200"
+						data-ds-filter="all"
+						class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-sky-600 text-white"
 					>
-						Hide
+						All
+					</button>
+					<button
+						type="button"
+						data-ds-filter="prey"
+						class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300"
+					>
+						Prey
+					</button>
+					<button
+						type="button"
+						data-ds-filter="empty"
+						class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300"
+					>
+						Unlabeled
 					</button>
 				</div>
-			</div>
 
-			<!-- Filter Chips -->
-			<div class="flex gap-2 mb-3 overflow-x-auto pb-1">
-				<button
-					type="button"
-					data-ds-filter="all"
-					class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-sky-600 text-white"
-				>
-					All
-				</button>
-				<button
-					type="button"
-					data-ds-filter="prey"
-					class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300"
-				>
-					Prey
-				</button>
-				<button
-					type="button"
-					data-ds-filter="empty"
-					class="ds-filter-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300"
-				>
-					Unlabeled
-				</button>
-			</div>
-
-            <!-- Responsive Thumbnail Grid (2 cols on phone, 3 on tablet/desktop) -->
-			<div
-				id="dataset-grid"
-				class="grid grid-cols-2 sm:grid-cols-3 auto-rows-max gap-2.5 max-h-[55dvh] overflow-y-auto overscroll-contain pr-1"
-			></div>
-
-		</section>
-
-
-
+				<!-- Responsive Thumbnail Grid (2 cols on phone, 3 on tablet/desktop) -->
+				<div
+					id="dataset-grid"
+					class="grid grid-cols-2 sm:grid-cols-3 auto-rows-max gap-2.5 max-h-[55dvh] overflow-y-auto overscroll-contain pr-1"
+				></div>
+			</section>
 		</main>
 
 		<footer
@@ -240,14 +249,14 @@
 				class="flex items-center justify-center gap-2 text-[11px] text-slate-500"
 			>
 				<span id="footer-meta"></span>
-                  <a
-                     id="footer-repo-link"
-                     href="https://github.com/belodetek/only-cats"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     aria-label="GitHub Repository"
-                     class="hidden inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors"
-                   >
+				<a
+					id="footer-repo-link"
+					href="https://github.com/belodetek/only-cats"
+					target="_blank"
+					rel="noopener noreferrer"
+					aria-label="GitHub Repository"
+					class="hidden inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors"
+				>
 					<span aria-hidden="true">·</span>
 					<svg
 						aria-hidden="true"
@@ -262,7 +271,116 @@
 			</div>
 		</footer>
 
-<!-- Full-Screen Mobile / Desktop Triage Modal -->
+		<!-- Slide-Over Runtime Telemetry Drawer -->
+		<div
+			id="drawer-backdrop"
+			class="hidden fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-[1px]"
+		></div>
+
+		<aside
+			id="telemetry-drawer"
+			aria-hidden="true"
+			aria-label="Runtime Telemetry"
+			class="hidden fixed inset-y-0 right-0 z-50 w-full max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col"
+		>
+			<!-- Drawer Header -->
+			<div
+				class="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 border-b border-slate-800"
+			>
+				<div class="min-w-0">
+					<div class="flex items-center gap-2 text-sm font-semibold text-sky-400">
+						<i data-lucide="bar-chart-2" class="w-4 h-4 shrink-0"></i>
+						<span>Runtime Telemetry</span>
+					</div>
+					<div id="drawer-updated-at" class="text-[11px] text-slate-400">
+						In-memory session metrics
+					</div>
+				</div>
+				<div class="flex items-center gap-2 shrink-0">
+					<a
+						href="/metrics"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-mono"
+					>
+						/metrics
+					</a>
+					<button
+						id="btn-close-drawer"
+						type="button"
+						aria-label="Close telemetry drawer"
+						class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 cursor-pointer"
+					>
+						Close
+					</button>
+				</div>
+			</div>
+
+			<!-- Drawer Body -->
+			<div class="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4">
+				<!-- Summary Metrics Grid -->
+				<div
+					id="drawer-metrics-grid"
+					class="grid grid-cols-2 sm:grid-cols-3 gap-2"
+				></div>
+
+				<!-- 24-Hour Distribution -->
+				<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
+					<div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+						<span>Activity by Hour (Local)</span>
+						<span class="flex items-center gap-3 text-[11px]">
+							<span class="inline-flex items-center gap-1"
+								><span class="w-2 h-2 rounded-full bg-rose-500"></span>Locks</span
+							>
+							<span class="inline-flex items-center gap-1"
+								><span class="w-2 h-2 rounded-full bg-amber-400"></span>Prey</span
+							>
+						</span>
+					</div>
+					<div
+						id="drawer-hourly-chart"
+						class="grid grid-cols-24 gap-0.5 items-end"
+						style="grid-template-columns: repeat(24, minmax(0, 1fr));"
+					></div>
+				</div>
+
+				<!-- Lock Duration Distribution -->
+				<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
+					<div class="text-xs text-slate-400 mb-2.5">
+						Lock Duration Distribution
+					</div>
+					<div id="drawer-buckets-list" class="flex flex-col gap-2"></div>
+				</div>
+
+				<!-- Recent Lock Cycles -->
+				<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
+					<div class="text-xs text-slate-400 mb-2">Recent Lock Cycles</div>
+					<div id="drawer-recent-locks" class="flex flex-col gap-1.5"></div>
+				</div>
+
+				<!-- Recent Prey Detections -->
+				<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
+					<div class="text-xs text-slate-400 mb-2">Recent Prey Detections</div>
+					<div
+						id="drawer-recent-detections"
+						class="flex flex-col gap-1.5"
+					></div>
+				</div>
+
+				<!-- Raw Snapshot -->
+				<details class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
+					<summary class="text-xs text-slate-400 cursor-pointer select-none">
+						Raw /ui/metrics JSON
+					</summary>
+					<pre
+						id="drawer-metrics-raw"
+						class="mt-2 text-[11px] text-slate-300 overflow-x-auto"
+					></pre>
+				</details>
+			</div>
+		</aside>
+
+		<!-- Full-Screen Mobile / Desktop Triage Modal -->
 		<div
 			id="triage-modal"
 			class="hidden fixed inset-0 z-50 bg-slate-950/95 flex flex-col justify-between h-[100dvh] select-none"
@@ -297,7 +415,17 @@
 				</div>
 			</div>
 
-            <!-- Center Image + Interactive Normalized SVG YOLO Box Overlay -->
+			<!-- Training/metadata -->
+			<div
+				id="triage-meta-bar"
+				class="hidden px-4 py-2 bg-slate-900/90 border-b border-slate-800/80 text-[11px] text-slate-300 flex flex-wrap items-center justify-center gap-x-3 gap-y-1"
+			></div>
+			<pre
+				id="triage-meta-json"
+				class="hidden max-h-40 overflow-auto px-4 py-2.5 bg-slate-950 border-b border-slate-800 text-[11px] font-mono text-slate-300 text-left select-text"
+			></pre>
+
+			<!-- Center Image + Interactive Normalized SVG YOLO Box Overlay -->
 			<div
 				id="triage-stage"
 				class="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-6"
@@ -352,21 +480,14 @@
 						</button>
 					</div>
 
-					<!-- Quick Relabel Row -->
-					<div class="grid grid-cols-3 gap-2">
-						<button
-							id="btn-label-cat"
-							type="button"
-							class="min-h-[46px] rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold"
-						>
-							Cat (0)
-						</button>
+                    <!-- Quick Relabel Row -->
+					<div class="grid grid-cols-2 gap-2">
 						<button
 							id="btn-label-prey"
 							type="button"
 							class="min-h-[46px] rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white text-xs sm:text-sm font-semibold"
 						>
-							Prey (1)
+							Prey (0)
 						</button>
 						<button
 							id="btn-label-clear"
@@ -379,7 +500,7 @@
 
 					<!-- Prev / Delete / Next Row -->
 					<div class="grid grid-cols-3 gap-2">
-					    <button
+						<button
 							id="btn-triage-prev"
 							type="button"
 							class="min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
