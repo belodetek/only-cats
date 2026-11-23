@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update python Docker tag to v3.15"
+      hash: 09497e93661f9296afa95d9f44808b67e681253c
+      body: Update python from 3.12 to 3.15
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.6
+  title: ""
+  date: 2026-11-23T17:51:39.516Z
+- commits:
     - subject: "patch: Update traefik Docker digest to a6c0194"
       hash: 207d7f8411bc291ce2853258e1223ab081d91133
       body: Update traefik
