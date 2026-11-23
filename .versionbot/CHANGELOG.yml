@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update traefik Docker digest to a6c0194"
+      hash: 207d7f8411bc291ce2853258e1223ab081d91133
+      body: Update traefik
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.5
+  title: ""
+  date: 2026-11-23T17:24:19.571Z
+- commits:
     - subject: "patch: Pin product-os/flowzone action to 2e1c63b"
       hash: 1d2f718da8bdaa11102dad6e60631e647319dbce
       body: Update product-os/flowzone
