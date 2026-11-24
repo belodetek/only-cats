@@ -88,7 +88,7 @@ services:
       OAUTH2_PROXY_UPSTREAMS: static://202
 
   signal-api:
-    image: bbernhard/signal-cli-rest-api@sha256:2cf09d66a86fdd210e42ee91662216364acc27da1163a8c44167a77ea3a6559a  # 0.101
+    image: bbernhard/signal-cli-rest-api@sha256:6b35b3527459aec9c459398de33f4f229239b3f17b0989d4bceb5191ad71fca9  # 0.101
     <<: *common
     networks:
       - only-cats
