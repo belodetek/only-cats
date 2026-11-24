@@ -2,7 +2,7 @@
 pythonpath = ["src", "."]
 testpaths = ["tests/unit"]
 markers = [
-    "hil: full-stack Docker Compose + QEMU ESP32-C6 hardware-in-the-loop tests",
+    "hil: QEMU Hardware-in-(the)-Loop tests"
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

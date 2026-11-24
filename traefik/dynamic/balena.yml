@@ -27,6 +27,7 @@ http:
       priority: 500
       middlewares:
         - balena-https-proto
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x
@@ -50,6 +51,7 @@ http:
       priority: 400
       middlewares:
         - balena-https-proto
+        - oauth2-signin-redirect
         - oauth2-auth
         - friendly-50x
         - cam-1-redirect
@@ -63,6 +65,7 @@ http:
       priority: 400
       middlewares:
         - balena-https-proto
+        - oauth2-signin-redirect
         - oauth2-auth
         - friendly-50x
       service: cat-cam-1-svc
@@ -74,6 +77,7 @@ http:
       priority: 350
       middlewares:
         - balena-https-proto
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x
@@ -86,6 +90,7 @@ http:
       priority: 300
       middlewares:
         - balena-https-proto
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x

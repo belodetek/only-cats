@@ -38,6 +38,13 @@ http:
         service: error-pages-svc
         query: "/error.html?code={status}"
 
+    oauth2-signin-redirect:
+      errors:
+        status:
+          - "401"
+        service: oauth2-proxy-svc
+        query: "/oauth2/sign_in?rd={url}"
+
     oauth2-auth:
       forwardAuth:
         address: http://oauth2-proxy:4180/oauth2/auth
