@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Hardware-in-Loop (HiL) tests"
+      hash: ff7f80503b01f71c11496bcd5c9e7f6b3c903d81
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.8
+  title: ""
+  date: 2026-11-24T04:42:45.787Z
+- commits:
     - subject: "patch: Update mcuadros/ofelia Docker digest to 75c3a3d"
       hash: 3b5c7ce9c447af556677482fe33a709e8e3b49e0
       body: Update mcuadros/ofelia
