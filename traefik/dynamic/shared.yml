@@ -16,6 +16,8 @@ http:
         contentTypeNosniff: true
         referrerPolicy: "same-origin"
         permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
         contentSecurityPolicy: >-
           default-src 'self';
           script-src 'self';

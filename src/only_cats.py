@@ -142,6 +142,9 @@ async def security_headers_middleware(request: Request, call_next):
         "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
     )
     response.headers.setdefault("Content-Security-Policy", _CSP_POLICY)
+    response.headers.setdefault(
+        "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+    )
     return response
 
 
