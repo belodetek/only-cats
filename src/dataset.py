@@ -191,7 +191,9 @@ def list_dataset_items(
         reverse=True,
     )
 
-    prey_ids = set(getattr(config, "prey_class_ids", {0}))
+    # The model only detects contraband, so every configured target class is a
+    # prey class; YOLO label ids are 0-based indices over config.target_classes.
+    prey_ids = set(range(len(config.target_classes)))
     counts = {"all": 0, "prey": 0, "empty": 0}
     matched: list[dict[str, Any]] = []
 

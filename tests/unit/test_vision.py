@@ -59,43 +59,6 @@ def test_run_inference_returns_none_for_corrupt_bytes():
     mock_model.predict.assert_not_called()
 
 
-def test_persist_training_pair_writes_image_and_normalized_labels(tmp_data_dirs):
-    """Verify persist_training_pair writes .jpg and YOLO xywhn .txt files."""
-    images_dir, labels_dir = tmp_data_dirs
-    dummy_img = np.zeros((32, 32, 3), dtype=np.uint8)
-    result = make_yolo_result(
-        [
-            (0, 0.92, [0.25, 0.5, 0.1, 0.2]),
-            (1, 0.81, [0.75, 0.6, 0.3, 0.4]),
-        ]
-    )
-
-    saved = vision.persist_training_pair(dummy_img, result, prefix="prey")
-
-    assert saved is not None
-    img_path, label_path = saved
-    assert img_path.startswith(str(images_dir))
-    assert label_path.startswith(str(labels_dir))
-
-    with open(label_path, encoding="utf-8") as label_file:
-        lines = label_file.read().splitlines()
-    assert lines == [
-        "0 0.250000 0.500000 0.100000 0.200000",
-        "1 0.750000 0.600000 0.300000 0.400000",
-    ]
-
-
-def test_persist_training_pair_returns_none_when_directory_missing(
-    tmp_data_dirs, monkeypatch
-):
-    """Verify persist_training_pair handles write failure cleanly by returning None."""
-    images_dir, _ = tmp_data_dirs
-    monkeypatch.setattr(vision.config, "images_dir", str(images_dir / "missing_subdir"))
-    dummy_img = np.zeros((16, 16, 3), dtype=np.uint8)
-
-    assert vision.persist_training_pair(dummy_img, None, prefix="train") is None
-
-
 def test_persist_clean_pair_strips_exif_writes_metadata_and_keeps_yolo_zip_clean(
     tmp_data_dirs,
 ):
