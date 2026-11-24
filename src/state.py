@@ -21,6 +21,7 @@ class AppState:
     controller: Optional[ESP32SerialController] = None
     model: Optional[YOLO] = None
     http_client: Optional[httpx.AsyncClient] = None
+    dispenser_client: Optional[httpx.AsyncClient] = None
     esp32_chip_desc: Optional[AppDescriptor] = None
     esp32_local_desc: Optional[AppDescriptor] = None
     eval_semaphore: Optional[asyncio.Semaphore] = None

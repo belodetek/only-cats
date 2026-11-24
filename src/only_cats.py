@@ -106,10 +106,14 @@ async def lifespan(app_instance: FastAPI):
             "Weights file missing at %s! Check path.", config.model_weights_path
         )
 
+    # Camera snapshots come from a self-signed LAN device, so this client skips
+    # TLS verification. The dispenser sends BasicAuth credentials and can be a
+    # remote host, so it gets a separate client with TLS verification enabled.
     state.http_client = httpx.AsyncClient(timeout=4.0, verify=False)
+    state.dispenser_client = httpx.AsyncClient(timeout=10.0)
     loop = asyncio.get_running_loop()
     state.controller.on_lockout_expired = lambda: asyncio.run_coroutine_threadsafe(
-        trigger_dispenser(state.http_client), loop
+        trigger_dispenser(state.dispenser_client), loop
     )
     app_instance.state.deps = state
 
@@ -119,6 +123,8 @@ async def lifespan(app_instance: FastAPI):
         state.controller.close()
     if state.http_client:
         await state.http_client.aclose()
+    if state.dispenser_client:
+        await state.dispenser_client.aclose()
     logger.info("Server shutdown finalized.")
 
 
