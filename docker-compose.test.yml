@@ -5,7 +5,6 @@
 #
 # QEMU Hardware-in-(the)-Loop (HiL) tests:
 #   docker compose -f docker-compose.test.yml --profile HiL up --build --force-recreate --remove-orphans --abort-on-container-exit --exit-code-from sut-hil sut-hil
-#   docker compose -f docker-compose.test.yml --profile HiL run --rm --use-aliases sut-hil
 #   docker compose -f docker-compose.test.yml --profile HiL down --volumes
 ---
 services:

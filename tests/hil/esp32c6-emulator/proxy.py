@@ -128,6 +128,8 @@ class EmulatorBridge:
         strap_val = STRAP_DOWNLOAD_BOOT if download_mode else STRAP_FLASH_BOOT
         cmd = [
             QEMU_BIN,
+            "-accel",
+            "tcg,thread=multi",
             "-nographic",
             "-machine",
             config.esp_chip,
