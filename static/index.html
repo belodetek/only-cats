@@ -15,10 +15,10 @@
 		class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-8"
 	>
         <!-- Header -->
-		<header
-			class="w-full max-w-xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-2.5 border-b border-slate-800 pb-4"
+        <header
+			class="w-full max-w-xl flex flex-nowrap items-center justify-between gap-2 border-b border-slate-800 pb-4"
 		>
-			<div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+			<div class="flex items-center gap-2 sm:gap-3 min-w-0">
 				<img
 					src="/static/logo.png"
 					alt="Logo"
@@ -32,17 +32,17 @@
 				</div>
 			</div>
 
-			<div class="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+			<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
 				<button
 					id="btn-drawer"
 					type="button"
 					aria-label="Metrics"
 					aria-expanded="false"
 					aria-controls="telemetry-drawer"
-					class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 cursor-pointer transition-colors"
+					class="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-full text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 cursor-pointer transition-colors"
 				>
 					<i data-lucide="bar-chart-2" class="w-3.5 h-3.5 text-sky-400 shrink-0"></i>
-					<span class="hidden min-[380px]:inline">Metrics</span>
+					<span class="hidden sm:inline">Metrics</span>
 				</button>
 
 				<div
@@ -59,12 +59,12 @@
 				<button
 					id="btn-reauth"
 					type="button"
-					aria-label="Sign out"
-					title="Sign out"
-					class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 cursor-pointer transition-colors"
+					aria-label="Sign out and re-authenticate"
+					title="Sign out and re-authenticate via OAuth2 Proxy"
+					class="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-full text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 cursor-pointer transition-colors"
 				>
 					<i data-lucide="log-out" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
-					<span class="hidden min-[440px]:inline">Sign Out</span>
+					<span class="hidden sm:inline">Sign Out</span>
 				</button>
 			</div>
 		</header>

@@ -132,7 +132,7 @@ def test_real_firmware_handshake_and_health_endpoint():
 
     # Reboot QEMU once to verify the flashed firmware boots and announces expected_version
     httpx.post(f"{HIL_EMU_URL}/reboot", timeout=5.0).raise_for_status()
-    _wait_for_serial_line(f"READY:ULOCK:{expected_version}", timeout=60.0)
+    _wait_for_serial_line(f"READY:ULOCK:{expected_version}", timeout=30.0)
     _wait_for_app_serial_connected(expected=True, timeout=15.0)
 
 
@@ -271,7 +271,7 @@ def test_serial_disconnect_fault_degrades_ui_and_recovers(page: Page):
         httpx.post(f"{HIL_EMU_URL}/reboot", timeout=5.0).raise_for_status()
 
     _wait_for_app_serial_connected(expected=True, timeout=20.0)
-    _wait_for_serial_line("READY:ULOCK:", timeout=60.0)
+    _wait_for_serial_line("READY:ULOCK:", timeout=30.0)
     page.reload(wait_until="networkidle")
     expect(page.locator("#status-text")).to_have_text("Unlocked")
     expect(page.locator("#btn-lock")).to_be_enabled()
