@@ -3,8 +3,7 @@
 #   docker compose -f docker-compose.test.yml run --rm --remove-orphans sut
 #   docker compose -f docker-compose.test.yml down --volumes
 #
-# HiL tests (QEMU ESP32-C6 + Real App + Browser):
-#   FW_VERSION=$(git rev-parse --short HEAD)
+# Hardware-in-(the)-Loop (HiL) tests:
 #   docker compose -f docker-compose.test.yml --profile HiL up --build --force-recreate --remove-orphans --abort-on-container-exit --exit-code-from sut-hil sut-hil
 #   docker compose -f docker-compose.test.yml --profile HiL run --rm --use-aliases sut-hil
 #   docker compose -f docker-compose.test.yml --profile HiL down --volumes
@@ -135,11 +134,9 @@ services:
     build:
       context: .
       dockerfile: tests/hil/esp32c6-emulator/Dockerfile
-      args:
-        FW_VERSION: ${FW_VERSION:-hil}
     environment:
-      - SERIAL_PORT=/run/vserial/ttyACM0
-      - PYTHONPATH=/app/src:/app
+      SERIAL_PORT: /run/vserial/ttyACM0
+      PYTHONPATH: /app/src:/app
     volumes:
       - ./src:/app/src:ro
       - vserial_run:/run/vserial
@@ -164,15 +161,15 @@ services:
         condition: service_healthy
     # required for conftest overrides
     environment:
-      - CAMERA_PASSWORD=mock-secret
-      - FIRMWARE_BIN_PATH=/tmp/skip_flash.bin
-      - IN_TRAINING=true
-      - LOCKOUT_DURATION_SEC=5.0
-      - PYTHONPATH=/app/src:/app
-      - SERIAL_PORT=/run/vserial/ttyACM0
-      - SERIAL_RECONNECT_BASE_DELAY_SEC=0.2
-      - SERIAL_RECONNECT_MAX_DELAY_SEC=1.0
-      - WEBHOOK_SECRET=another-secret
+      CAMERA_PASSWORD: mock-secret
+      FIRMWARE_BIN_PATH: /run/vserial/firmware_sketch.ino.bin
+      IN_TRAINING: "true"
+      LOCKOUT_DURATION_SEC: 5.0
+      PYTHONPATH: /app/src:/app
+      SERIAL_PORT: /run/vserial/ttyACM0
+      SERIAL_RECONNECT_BASE_DELAY_SEC: 0.2
+      SERIAL_RECONNECT_MAX_DELAY_SEC: 1.0
+      WEBHOOK_SECRET: another-secret
     volumes:
       - ./src:/app/src:ro
       - ./static:/app/static:ro

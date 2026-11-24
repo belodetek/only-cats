@@ -13,19 +13,29 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Run isolated tests for version ${{ env.matrix_value }}
+    - name: "Run compose '${{ env.matrix_value }}' profile tests"
       shell: bash
       if: ${{ env.matrix_value != '' }}
       env:
-        TEST_VERSIONS: ${{ env.matrix_value }}
+        COMPOSE_PROFILE: ${{ env.matrix_value }}
       run: |
-        FW_VERSION=$(git rev-parse --short HEAD)
+        #!/usr/bin/env bash
+        set -euo pipefail
 
-        docker compose -f docker-compose.test.yml --profile HiL up \
+        cleanup() {
+          docker compose -f docker-compose.test.yml --profile "${COMPOSE_PROFILE}" down \
+            --volumes
+        }
+        trap cleanup EXIT
+
+
+        # SuT-HiL uses SuT image
+        docker compose -f docker-compose.test.yml build sut
+
+        docker compose -f docker-compose.test.yml --profile "${COMPOSE_PROFILE}" up \
           --build \
-         --force-recreate \
-         --remove-orphans \
-         --abort-on-container-exit \
-         --exit-code-from sut-hil sut-hil
-
-        docker compose -f docker-compose.test.yml --profile HiL down --volumes
+          --force-recreate \
+          --remove-orphans \
+          --abort-on-container-exit \
+          --exit-code-from sut-hil \
+          sut-hil

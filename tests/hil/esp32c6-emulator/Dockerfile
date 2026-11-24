@@ -2,7 +2,7 @@
 FROM python:3.12-slim-bookworm AS fw-builder
 
 ARG FQBN=esp32:esp32:XIAO_ESP32C6
-ARG FW_VERSION=hil
+ARG FW_VERSION=dev
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
@@ -21,7 +21,8 @@ RUN arduino-cli compile \
       --output-dir /fw/out \
       /fw/firmware_sketch && \
     cp /fw/out/firmware_sketch.ino.merged.bin /fw/flash_image.bin && \
-    truncate -s 4M /fw/flash_image.bin
+    truncate -s 4M /fw/flash_image.bin && \
+    dd if=/dev/zero of=/fw/flash_image.bin bs=1 seek=$((0x10000)) count=4096 conv=notrunc
 
 # Stage 2: Espressif QEMU RISC-V (supports -M esp32c6) + PTY Tee Proxy
 FROM python:3.12-slim-bookworm
@@ -60,6 +61,7 @@ RUN pip install --no-cache-dir fastapi uvicorn
 
 WORKDIR /emulator
 COPY --from=fw-builder /fw/flash_image.bin /firmware/flash_image.bin
+COPY --from=fw-builder /fw/out/firmware_sketch.ino.bin /fw/out/firmware_sketch.ino.bin
 COPY tests/hil/esp32c6-emulator/proxy.py /emulator/proxy.py
 
 CMD ["python3", "/emulator/proxy.py"]

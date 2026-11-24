@@ -28,6 +28,6 @@ jobs:
       custom_test_matrix: >
         {
           "value": [
-            "hil"
+            "HiL"
           ]
         }

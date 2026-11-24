@@ -81,6 +81,7 @@ _HIL_CONFIG_OVERRIDES: dict[str, object] = {
     "dispenser_url": "",
     "signal_sender": "",
     "signal_recipients": [],
+    "firmware_bin_path": config.firmware_bin_path,
     "serial_port": config.serial_port,
     "serial_reconnect_base_delay_sec": config.serial_reconnect_base_delay_sec,
     "serial_reconnect_max_delay_sec": config.serial_reconnect_max_delay_sec,

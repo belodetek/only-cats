@@ -1,5 +1,6 @@
 """Hardware-in-the-Loop (HiL) tests."""
 
+import struct
 import time
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from playwright.sync_api import Page, expect
 
 # pylint: enable=import-error
 import config
+from flasher import ESP_APP_DESC_MAGIC
 from tests.conftest import (
     HIL_APP_URL,
     HIL_EMU_URL,
@@ -23,6 +25,17 @@ HIL_DIR = Path(__file__).resolve().parent
 FIXTURES_DIR = HIL_DIR / "fixtures"
 
 pytestmark = pytest.mark.hil
+
+
+def _read_local_firmware_version(bin_path: Path) -> str:
+    """Extract the version string from the esp_app_desc_t header of a compiled .bin."""
+    header = bin_path.read_bytes()[:0x50]
+    assert len(header) >= 0x50, f"Firmware binary too small: {bin_path}"
+    (magic,) = struct.unpack_from("<I", header, 0x20)
+    assert (
+        magic == ESP_APP_DESC_MAGIC
+    ), f"Invalid esp_app_desc_t magic {hex(magic)} in {bin_path}"
+    return header[0x30:0x50].split(b"\x00", 1)[0].decode("utf-8")
 
 
 def _wait_for_serial_line(substring: str, timeout: float = 8.0) -> dict[str, Any]:
@@ -111,10 +124,16 @@ def _reset_hil_state_between_tests():
 
 
 def test_real_firmware_handshake_and_health_endpoint():
-    """Verify only-cats connects to QEMU ESP32-C6 and reports healthy serial & model."""
+    """Verify only-cats flashes/connects to QEMU ESP32-C6 and reports matching fw_version."""
+    expected_version = _read_local_firmware_version(Path(config.firmware_bin_path))
     health = httpx.get(f"{HIL_APP_URL}/health", timeout=5.0).json()
     assert health["serial_connected"] is True
     assert health["model_loaded"] is True
+
+    # Reboot QEMU once to verify the flashed firmware boots and announces expected_version
+    httpx.post(f"{HIL_EMU_URL}/reboot", timeout=5.0).raise_for_status()
+    _wait_for_serial_line(f"READY:ULOCK:{expected_version}", timeout=10.0)
+    _wait_for_app_serial_connected(expected=True, timeout=15.0)
 
 
 def test_test_webhook_triggers_real_esp32_lock_ack_and_updates_ui(page: Page):
@@ -132,8 +151,9 @@ def test_test_webhook_triggers_real_esp32_lock_ack_and_updates_ui(page: Page):
         page.goto(f"{HIL_APP_URL}/", wait_until="networkidle")
         expect(page.locator("#status-text")).to_have_text("Locked (Prey)")
     finally:
+        # Ensure lockout expires so subsequent tests start unlocked
         _wait_for_serial_line(
-            "EVENT:TIMEOUT_UNLOCK", timeout=config.lockout_duration_sec + 6.0
+            "EVENT:TIMEOUT_UNLOCK", timeout=config.lockout_duration_sec + 15.0
         )
 
     page.reload(wait_until="networkidle")
@@ -191,7 +211,7 @@ def test_prey_fixture_triggers_yolo_esp32_lock_and_persists_dataset(page: Page):
     finally:
         # Ensure lockout expires so subsequent tests start unlocked
         _wait_for_serial_line(
-            "EVENT:TIMEOUT_UNLOCK", timeout=config.lockout_duration_sec + 6.0
+            "EVENT:TIMEOUT_UNLOCK", timeout=config.lockout_duration_sec + 15.0
         )
 
 
