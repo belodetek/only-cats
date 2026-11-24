@@ -34,8 +34,6 @@ runs:
 
         docker compose -f docker-compose.test.yml --profile "${COMPOSE_PROFILE}" up \
           --build \
-          --force-recreate \
-          --remove-orphans \
           --abort-on-container-exit \
           --exit-code-from sut-hil \
-          sut-hil || true  # FIXME: for now..
+          sut-hil || echo "::warning::${COMPOSE_PROFILE} test profile failed"

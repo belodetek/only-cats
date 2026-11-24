@@ -9,6 +9,14 @@ document.addEventListener("DOMContentLoaded", () => {
 	const btnCamera = document.getElementById("btn-camera");
 	const btnDispenser = document.getElementById("btn-dispenser");
 	const btnCloseInfo = document.getElementById("btn-close-info");
+	const btnReauth = document.getElementById("btn-reauth");
+	if (btnReauth) {
+		btnReauth.addEventListener("click", () => {
+			window.location.assign(
+				"/oauth2/sign_out?rd=%2Foauth2%2Fstart%3Frd%3D%252F",
+			);
+		});
+	}
 
 	// Telemetry drawer elements
 	const btnDrawer = document.getElementById("btn-drawer");
@@ -80,13 +88,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	let drawerPollTimer = null;
 
-	function apiFetch(url, options = {}) {
+	async function apiFetch(url, options = {}) {
 		const method = (options.method || "GET").toUpperCase();
 		const headers = { ...(options.headers || {}) };
 		if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
 			headers["X-Requested-With"] = "fetch";
 		}
-		return fetch(url, { ...options, headers });
+		const resp = await fetch(url, { ...options, headers });
+		if (resp.status === 401) {
+			const rd = encodeURIComponent(
+				window.location.pathname + window.location.search,
+			);
+			window.location.assign(`/oauth2/start?rd=${rd}`);
+			return new Promise(() => {});
+		}
+		return resp;
 	}
 
 	function renderFooterMeta() {
