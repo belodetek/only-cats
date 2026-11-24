@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update product-os/flowzone digest to 1c5c459"
+      hash: 36ad8a57ec2a9e73dee0c1d9a19e8694f1ba6656
+      body: Update product-os/flowzone
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.9
+  title: ""
+  date: 2026-11-24T05:06:10.767Z
+- commits:
     - subject: "patch: Hardware-in-Loop (HiL) tests"
       hash: ff7f80503b01f71c11496bcd5c9e7f6b3c903d81
       body: ""
