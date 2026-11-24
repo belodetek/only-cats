@@ -13,7 +13,7 @@ from esp32 import ESP32SerialController
 from flasher import AppDescriptor
 
 
-# pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods,too-many-instance-attributes
 @dataclass
 class AppState:
     """Encapsulates shared runtime dependencies without requiring global variables."""
