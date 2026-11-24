@@ -86,7 +86,6 @@ class ESP32SerialController:
             with self.lock:
                 self.ser = new_ser
                 self.last_ack_at = time.time()
-            METRICS.serial_reconnects_total.inc()
             logger.info("Connected to ESP32 on %s at %d baud", self.port, self.baudrate)
             return True
         except (serial.SerialException, OSError) as exc:
@@ -183,6 +182,7 @@ class ESP32SerialController:
                 connected = bool(self.ser and getattr(self.ser, "is_open", False))
 
             if not connected:
+                METRICS.serial_reconnects_total.inc()
                 if self.connect():
                     reconnect_delay = config.serial_reconnect_base_delay_sec
                     with self.lock:
