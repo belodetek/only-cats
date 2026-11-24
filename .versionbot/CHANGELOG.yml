@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: slence linter"
+      hash: bf90575bd4cc03e582d085a0f7e885a8e3d51a24
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.15
+  title: ""
+  date: 2026-11-24T23:56:27.645Z
+- commits:
     - subject: "patch: Mobile fixes"
       hash: c0d54e606990c1d0963f271486e451abf93b1e64
       body: ""
