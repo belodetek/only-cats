@@ -7,6 +7,7 @@ http:
       priority: 600
       middlewares:
         - balena-https-proto
+        - oauth2-headers
       service: oauth2-proxy-svc
 
     balena-error-assets:

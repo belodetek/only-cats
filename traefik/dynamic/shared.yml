@@ -28,6 +28,16 @@ http:
           base-uri 'self';
           form-action 'self';
 
+    # Lighter headers for oauth2-proxy's own pages (sign-in / error): no CSP,
+    # because oauth2-proxy serves inline <script> that script-src 'self' blocks.
+    oauth2-headers:
+      headers:
+        customFrameOptionsValue: "DENY"
+        contentTypeNosniff: true
+        referrerPolicy: "same-origin"
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+
     strip-static:
       stripPrefix:
         prefixes:
