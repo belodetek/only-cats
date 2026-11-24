@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update dependency numpy to v2"
+      hash: 1309cee52dbbbfba47526f0f2e9a61278d2d5540
+      body: Update numpy from 1.26.4 to 2.5.5
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.13
+  title: ""
+  date: 2026-11-24T13:30:30.912Z
+- commits:
     - subject: "patch: UI fixes, etc."
       hash: caca5134b438342877b570c666c7f81e44b2450e
       body: ""
