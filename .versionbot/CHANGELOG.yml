@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update mcuadros/ofelia Docker digest to 75c3a3d"
+      hash: 3b5c7ce9c447af556677482fe33a709e8e3b49e0
+      body: Update mcuadros/ofelia
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.7
+  title: ""
+  date: 2026-11-24T01:42:47.970Z
+- commits:
     - subject: "patch: Update python Docker tag to v3.15"
       hash: 09497e93661f9296afa95d9f44808b67e681253c
       body: Update python from 3.12 to 3.15
