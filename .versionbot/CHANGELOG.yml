@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: UI fixes, etc."
+      hash: caca5134b438342877b570c666c7f81e44b2450e
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.12
+  title: ""
+  date: 2026-11-24T05:53:22.891Z
+- commits:
     - subject: "patch: UI fixes, sign out and HiL reliability"
       hash: fd2e3a2702469f044a485bd16f3a909bab165708
       body: ""
