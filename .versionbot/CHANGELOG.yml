@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Mobile fixes"
+      hash: c0d54e606990c1d0963f271486e451abf93b1e64
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.14
+  title: ""
+  date: 2026-11-24T15:03:37.890Z
+- commits:
     - subject: "patch: Update dependency numpy to v2"
       hash: 1309cee52dbbbfba47526f0f2e9a61278d2d5540
       body: Update numpy from 1.26.4 to 2.5.5
