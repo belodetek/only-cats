@@ -78,7 +78,7 @@ services:
     expose:
       - 4180
     environment:
-      OAUTH2_PROXY_COOKIE_CSRF_EXPIRE: 5m
+      OAUTH2_PROXY_COOKIE_CSRF_EXPIRE: 15m
       OAUTH2_PROXY_COOKIE_PATH: /
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
