@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
-pythonpath = ["src", "tests"]
-testpaths = ["tests"]
+pythonpath = ["src", "."]
+testpaths = ["tests/unit"]
+markers = [
+    "hil: QEMU Hardware-in-(the)-Loop tests"
+]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["ignore::pytest.PytestRemovedIn10Warning"]

@@ -1,0 +1,41 @@
+# https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
+name: "Docker tests version scoped"
+description: "Custom test action to test each individual API version isolated in docker"
+# these inputs are always provided by flowzone, so they must always be defined on the composite action
+inputs:
+  json:
+    description: "JSON stringified object containing all the inputs from the calling workflow"
+    required: true
+  secrets:
+    description: "JSON stringified object containing all the secrets from the calling workflow"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Run compose '${{ env.matrix_value }}' profile tests"
+      shell: bash
+      if: ${{ env.matrix_value != '' }}
+      env:
+        COMPOSE_PROFILE: ${{ env.matrix_value }}
+      run: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        cleanup() {
+          docker compose -f docker-compose.test.yml --profile "${COMPOSE_PROFILE}" down \
+            --volumes
+        }
+        trap cleanup EXIT
+
+
+        # SuT-HiL uses SuT image
+        docker compose -f docker-compose.test.yml build sut
+
+        docker compose -f docker-compose.test.yml --profile "${COMPOSE_PROFILE}" up \
+          --build \
+          --force-recreate \
+          --remove-orphans \
+          --abort-on-container-exit \
+          --exit-code-from sut-hil \
+          sut-hil || true  # FIXME: for now..

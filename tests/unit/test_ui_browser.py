@@ -4,26 +4,18 @@
 import re
 
 import pytest
-from conftest import TRAEFIK_UPSTREAM_FILE, _patch_metrics_store, write_traefik_upstream
 from playwright.sync_api import Page, expect
 
 import config
 import dataset
 import metrics
-
-
-def _stub_external_cdns(page: Page, base_url: str) -> None:
-    """Fulfill external CDN scripts immediately so tests work offline and deterministically."""
-    page.route(
-        "**/*",
-        lambda route: (
-            route.continue_()
-            if route.request.url.startswith(base_url)
-            else route.fulfill(
-                status=200, content_type="application/javascript", body=""
-            )
-        ),
-    )
+from tests.conftest import (
+    TRAEFIK_UPSTREAM_FILE,
+    _patch_metrics_store,
+    open_first_dataset_triage_modal,
+    stub_external_cdns,
+    write_traefik_upstream,
+)
 
 
 def _assert_security_headers(headers: dict[str, str]) -> None:
@@ -48,7 +40,7 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     """Verify UI renders across desktop/mobile viewports and all 4 buttons function."""
     base_url, state = live_ui_server
     page.set_viewport_size(viewport)
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
 
     resp = page.goto(f"{base_url}/", wait_until="networkidle")
     assert resp is not None
@@ -112,7 +104,7 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
 def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
     """Verify clicking the Camera button redirects the browser to /cctv1/."""
     base_url, _ = live_ui_server
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
 
     # Intercept /cctv1/ navigation target since Traefik handles /cctv1 in production
     page.route(
@@ -141,7 +133,7 @@ def test_traefik_routes_ui_and_camera_end_to_end(
 
     context = browser.new_context(ignore_https_errors=True)
     page = context.new_page()
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
 
     # 1. Load UI through Traefik and confirm security headers are enforced
     resp = page.goto(f"{base_url}/", wait_until="networkidle")
@@ -231,7 +223,7 @@ def test_esp32_disconnected_disables_controls_and_highlights_health(
     and yellows health."""
     base_url, state = live_ui_server
     state.controller.is_connected = False
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
 
     page.goto(f"{base_url}/", wait_until="networkidle")
 
@@ -253,7 +245,7 @@ def test_esp32_disconnected_disables_controls_and_highlights_health(
 def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
     """Verify Info panel renders the running ESP32 firmware short Git SHA."""
     base_url, _ = live_ui_server
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
     page.route(
         f"{base_url}/health",
         lambda route: route.fulfill(
@@ -284,7 +276,7 @@ def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
 def test_ui_warns_on_esp32_firmware_version_mismatch(page: Page, live_ui_server):
     """Verify ESP32 Firmware health cell turns amber when chip and local versions differ."""
     base_url, _ = live_ui_server
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
     page.route(
         f"{base_url}/health",
         lambda route: route.fulfill(
@@ -329,7 +321,7 @@ def test_training_dataset_triage_flow_in_browser(
     (labels_dir / "capture_01.txt").write_text("", encoding="utf-8")
 
     page.set_viewport_size(viewport)
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
     page.goto(f"{base_url}/", wait_until="networkidle")
 
     # 1. Open dataset drawer and confirm capture count badge + thumbnail card
@@ -370,12 +362,10 @@ def test_interactive_bounding_box_drag_draw_and_remove_in_browser(
     )
 
     page.set_viewport_size({"width": 390, "height": 844})
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
     page.goto(f"{base_url}/", wait_until="networkidle")
 
-    page.locator("#btn-dataset").click()
-    page.locator("#dataset-grid [data-ds-idx='0']").click()
-    expect(page.locator("#triage-modal")).to_be_visible()
+    open_first_dataset_triage_modal(page)
 
     # Enable Edit Boxes mode
     page.locator("#btn-toggle-box-edit").click()
@@ -433,7 +423,7 @@ def test_triage_pagination_shows_spinner_and_locks_buttons_while_loading(
     (images_dir / "img_01.jpg").write_bytes(sample_jpeg_bytes)
     (images_dir / "img_02.jpg").write_bytes(sample_jpeg_bytes)
 
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.locator("#btn-dataset").click()
     page.locator("#dataset-grid [data-ds-idx='0']").click()
@@ -586,7 +576,7 @@ def test_dataset_browser_overlays_json_metadata_on_thumbnails_and_triage(
         },
     )
 
-    _stub_external_cdns(page, base_url)
+    stub_external_cdns(page, base_url)
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.locator("#btn-dataset").click()
 

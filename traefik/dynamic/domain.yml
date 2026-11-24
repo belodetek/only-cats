@@ -48,6 +48,7 @@ http:
         - websecure
       priority: 500
       middlewares:
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x
@@ -81,6 +82,7 @@ http:
         - websecure
       priority: 400
       middlewares:
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x
@@ -100,6 +102,7 @@ http:
         - websecure
       priority: 400
       middlewares:
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x
@@ -117,6 +120,7 @@ http:
         - websecure
       priority: 350
       middlewares:
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x
@@ -134,6 +138,7 @@ http:
         - websecure
       priority: 300
       middlewares:
+        - oauth2-signin-redirect
         - oauth2-auth
         - security-headers
         - friendly-50x

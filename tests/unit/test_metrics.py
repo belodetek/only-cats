@@ -1,11 +1,11 @@
 # pylint: disable=import-error
 """Unit and API tests for Prometheus exposition and runtime telemetry metrics."""
 
-from conftest import _patch_metrics_store
 from fastapi.testclient import TestClient
 
 import metrics
 import only_cats
+from tests.conftest import _patch_metrics_store
 
 
 def test_metrics_store_records_locks_unlocks_and_duration_buckets():
