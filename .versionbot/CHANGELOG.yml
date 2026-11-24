@@ -1,4 +1,20 @@
 - commits:
+    - subject: "patch: UI fixes, sign out and HiL reliability"
+      hash: fd2e3a2702469f044a485bd16f3a909bab165708
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+    - subject: "patch: Update bbernhard/signal-cli-rest-api Docker digest to 6b35b35"
+      hash: 4178af17fe1d4918e79df2af5dfd5ac4d28ca909
+      body: Update bbernhard/signal-cli-rest-api
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.11
+  title: ""
+  date: 2026-11-24T05:25:54.745Z
+- commits:
     - subject: "patch: Update traefik Docker digest to 63f61f6"
       hash: ff5dab5dc4375d997ac3dd2f08c9dad3a408bc55
       body: Update traefik
