@@ -46,7 +46,7 @@ _STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 _CSP_POLICY = (
     "default-src 'self'; "
-    "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com; "
+    "script-src 'self'; "
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: blob:; "
     "connect-src 'self'; "
