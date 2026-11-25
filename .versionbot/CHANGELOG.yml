@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update pre-commit hook biomejs/pre-commit to v2.6.9"
+      hash: 8a9e945a24ca9c9d100d23335568b6c59629e33d
+      body: Update biomejs/pre-commit from 2.6.8 to 2.6.9
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.19
+  title: ""
+  date: 2026-11-25T18:14:45.610Z
+- commits:
     - subject: "patch: Update traefik Docker digest to 00c9734"
       hash: f57c7a892eb83281984f11fe5a881cba8465410d
       body: Update traefik
