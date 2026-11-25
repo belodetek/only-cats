@@ -1,4 +1,20 @@
 - commits:
+    - subject: "patch: Update traefik Docker digest to 00c9734"
+      hash: f57c7a892eb83281984f11fe5a881cba8465410d
+      body: Update traefik
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+    - subject: "patch: Update product-os/flowzone digest to ff00e72"
+      hash: d24cb6a2fb87070fa68cc240eac61d672b025369
+      body: Update product-os/flowzone
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.18
+  title: ""
+  date: 2026-11-25T18:11:57.287Z
+- commits:
     - subject: "patch: Don't persist blurry images"
       hash: f9752f9be18a10dee7a95bd71b8f3033eb2b1fba
       body: ""
