@@ -1,4 +1,4 @@
-FROM traefik@sha256:63f61f603052fbcc77597da1dc71ed8c39cf3f3e5a7c92c73bc94d84973997c3
+FROM traefik@sha256:00c9734983e74ae35a1fc18eaee9e9da13f3dde95c4e45b3b8c3b60e0dbd2d17
 
 RUN apk add --no-cache tzdata
 
