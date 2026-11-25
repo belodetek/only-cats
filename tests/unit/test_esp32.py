@@ -184,3 +184,14 @@ def test_admin_unlock_releases_lock_and_ignores_prey_trigger(monkeypatch):
 
     assert not expired_events
     assert mock_serial_instance.write.call_args_list[-1][0][0] == b"U"
+
+
+def test_short_prelock_does_not_shorten_active_prey_lockout():
+    """A 15s pre-lock arriving during a 300s prey lockout must preserve the 300s expiry."""
+    controller = esp32.ESP32SerialController("/dev/null", 115200)
+    controller.trigger_lock(300.0, dispense_on_expire=True)
+    long_until = controller.lock_until
+
+    controller.trigger_lock(15.0, dispense_on_expire=False)
+    assert controller.lock_until == long_until
+    assert controller.state.pending_dispense is True

@@ -129,6 +129,19 @@ async def reolink_webhook(
         }
 
     deps: AppState = request.app.state.deps
+    if (
+        alarm_type == "ANIMAL"
+        and deps.controller
+        and config.animal_prelock_duration_sec > 0
+    ):
+        if deps.controller.trigger_lock(
+            config.animal_prelock_duration_sec, dispense_on_expire=False
+        ):
+            logger.info(
+                "Pre-locked door for %.1fs pending evaluation.",
+                config.animal_prelock_duration_sec,
+            )
+
     background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
     METRICS.webhooks_total.labels(outcome="queued").inc()
     return {"status": "queued", "camera_url": camera_base_url}

@@ -36,15 +36,19 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
 ```text
 +--------------------+                +---------------------------+
 | REOLINK PoE CAMERA |                |         INTEL NUC         |
-|  (IP / Local)      |                |   (FastAPI on Port 8000   |
+|  (IP / Local)      |                |   (FastAPI on Port 8000)  |
 +-----+--------------+                +-----------+---------------+
       |                                           |
       | 1. Motion Detected (ANIMAL)               |
       |    POST /webhook/reolink                  |
       |    (JSON payload: event alarm)            |
       +------------------------------------------>| [reolink_webhook]
-      |                                           | Enqueues evaluation
-      |<------------------------------------------+ task via BackgroundTasks
+      |                                           | 1a. Immediate Pre-Lock:
+      |                                           |     trigger_lock(15s,
+      |                                           |     dispense_on_expire=False)
+      |                                           |     -> Hold b'L' loop
+      |                                           | 1b. Enqueue evaluation
+      |<------------------------------------------+     task via BackgroundTasks
       | 2. HTTP 200 {"status": "queued"}          |
       |    (Connection closed immediately)        |
       |                                           v
@@ -69,13 +73,14 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
                                       YES  /              \  NO
                                           v                v
                          +--------------------+     [IN_TRAINING?]
-                         | 7a. Trigger Lock   |       /        \
+                         | 7a. Extend Lock    |       /        \
                          |     Hold b'L' loop |  YES /          \ NO
-                         |     for 300 sec    |     v            v
-                         +-+----------------+-+  +---------+  +-------------------+
-                           |                |    | 7b. No  |  | 7c. Discard Frame |
-                           v                |    | lock    |  |     No lock state |
-      +-----------------------+             |    | change  |  |     change        |
+                         |     to 300s + set  |     v            v
+                         |     dispense=True  |  +---------+  +-------------------+
+                         +-+----------------+-+  | 7b. Let |  | 7c. Discard Frame |
+                           |                |    | 15s pre |  |     Let 15s pre-  |
+                           v                |    | -lock   |  |     lock expire   |
+      +-----------------------+             |    | expire  |  |     (no dispense) |
       | 8. BackgroundTasks    |             |    +----+----+  +-------------------+
       |    Offload Disk I/O   |             |         |
       +-+-------------------+-+             v         |
