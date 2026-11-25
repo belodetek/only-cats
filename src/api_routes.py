@@ -66,6 +66,36 @@ def _redact_headers(headers) -> dict[str, str]:
     }
 
 
+def _maybe_prelock_animal(deps: AppState, alarm_type: str) -> bool:
+    """Engage short pre-lock on ANIMAL webhooks unless disabled or in cooldown."""
+    if (
+        not config.enable_animal_prelock
+        or alarm_type != "ANIMAL"
+        or not deps.controller
+        or config.animal_prelock_duration_sec <= 0
+    ):
+        return False
+
+    now = time.monotonic()
+    cooldown_until = float(getattr(deps, "prelock_cooldown_until", 0.0))
+    if now < cooldown_until:
+        logger.info(
+            "ANIMAL pre-lock suppressed by cooldown (%.1fs remaining); evaluating frame.",
+            cooldown_until - now,
+        )
+        return False
+
+    if deps.controller.trigger_lock(
+        config.animal_prelock_duration_sec, dispense_on_expire=False
+    ):
+        logger.info(
+            "Pre-locked door for %.1fs pending evaluation.",
+            config.animal_prelock_duration_sec,
+        )
+        return True
+    return False
+
+
 @router.get("/metrics", include_in_schema=False)
 async def prometheus_metrics() -> Response:
     """Expose Prometheus metrics on standard /metrics path."""
@@ -130,20 +160,15 @@ async def reolink_webhook(
         }
 
     deps: AppState = request.app.state.deps
-    if (
-        alarm_type == "ANIMAL"
-        and deps.controller
-        and config.animal_prelock_duration_sec > 0
-    ):
-        if deps.controller.trigger_lock(
-            config.animal_prelock_duration_sec, dispense_on_expire=False
-        ):
-            logger.info(
-                "Pre-locked door for %.1fs pending evaluation.",
-                config.animal_prelock_duration_sec,
-            )
+    prelock_engaged = _maybe_prelock_animal(deps, alarm_type)
 
-    background_tasks.add_task(fetch_and_evaluate, deps, camera_base_url, webhook_event)
+    background_tasks.add_task(
+        fetch_and_evaluate,
+        deps,
+        camera_base_url,
+        webhook_event,
+        prelock_engaged=prelock_engaged,
+    )
     METRICS.webhooks_total.labels(outcome="queued").inc()
     return {"status": "queued", "camera_url": camera_base_url}
 

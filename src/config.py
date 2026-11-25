@@ -87,7 +87,13 @@ firmware_bin_path: str = os.getenv("FIRMWARE_BIN_PATH", "flash/firmware_sketch.i
 serial_port: str = os.getenv("SERIAL_PORT", "/dev/ttyACM0")
 baud_rate = int(os.getenv("BAUD_RATE", "115200"))
 command_interval_sec = float(os.getenv("COMMAND_INTERVAL_SEC", "1.0"))
+enable_animal_prelock: bool = os.getenv(
+    "ENABLE_ANIMAL_PRELOCK", "true"
+).strip().lower() in ("1", "true", "yes", "on")
 animal_prelock_duration_sec = float(os.getenv("ANIMAL_PRELOCK_DURATION_SEC", "15.0"))
+animal_prelock_cooldown_sec: float = float(
+    os.getenv("ANIMAL_PRELOCK_COOLDOWN_SEC", "60.0")
+)
 lockout_duration_sec = float(os.getenv("LOCKOUT_DURATION_SEC", "300.0"))
 serial_reconnect_base_delay_sec = float(
     os.getenv("SERIAL_RECONNECT_BASE_DELAY_SEC", "1.0")
