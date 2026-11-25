@@ -1,4 +1,4 @@
-exclude: ^(VERSION|.versionbot/CHANGELOG.yml|firmware/.*|training/tune/.*|traefik/dynamic/.*|static/vendor/.*)$
+exclude: ^(VERSION|.versionbot/CHANGELOG.yml|firmware/.*|training/.*|traefik/dynamic/.*|static/vendor/.*)$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

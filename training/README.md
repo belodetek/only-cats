@@ -47,13 +47,16 @@
     # .. or download dataset export from the Web UI and unpack to tune/
 
     # generate draft labels (prey coordinates in image)
-    python predict.py
+    python3 predict.py
 
     # .. and verify
-    python verify.py
+    python3 verify.py
 
     # fine tune the base weights
-    python tune.py
+    python3 tune.py
+
+    # .. and test new weights against a test image (e.g. last missed prey detection)
+    python3 test.py --image "images/$(ls -t images/ | head -n 1)" --conf 0.35
 
 
 [scp-uuid]: https://github.com/pdcastro/ssh-uuid#file-transfer-with-scp
