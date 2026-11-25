@@ -10,7 +10,7 @@ on:
 jobs:
   flowzone:
     name: Flowzone
-    uses: product-os/flowzone/.github/workflows/flowzone.yml@ff00e72360d4f593fcc15ffaf1a47cd2cb23ee27 # master
+    uses: product-os/flowzone/.github/workflows/flowzone.yml@74265deb7aa4c3dbae4b3ae13eda8df3d143a48a # master
     secrets:
       BALENA_API_KEY: ${{ secrets.BALENA_API_KEY }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
