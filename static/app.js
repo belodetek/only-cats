@@ -47,6 +47,12 @@ document.addEventListener("DOMContentLoaded", () => {
 	const datasetGrid = document.getElementById("dataset-grid");
 	const datasetCountBadge = document.getElementById("dataset-count-badge");
 
+	const btnPurgeDataset = document.getElementById("btn-purge-dataset");
+	const purgeModal = document.getElementById("purge-modal");
+	const purgeConfirmInput = document.getElementById("purge-confirm-input");
+	const btnCancelPurge = document.getElementById("btn-cancel-purge");
+	const btnConfirmPurge = document.getElementById("btn-confirm-purge");
+
 	const triageModal = document.getElementById("triage-modal");
 	const triageStage = document.getElementById("triage-stage");
 	const triageImg = document.getElementById("triage-img");
@@ -941,14 +947,73 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 			const payload = await resp.json();
 			datasetState.items = payload.items || [];
-			if (datasetCountBadge && payload.counts) {
-				datasetCountBadge.textContent = String(payload.counts.all ?? 0);
+			const totalCount = payload.counts?.all ?? datasetState.items.length;
+			if (datasetCountBadge) {
+				datasetCountBadge.textContent = String(totalCount);
+			}
+			if (btnPurgeDataset) {
+				btnPurgeDataset.disabled = totalCount === 0;
 			}
 			renderDatasetGrid();
 		} catch (err) {
 			if (reveal) {
 				datasetGrid.innerHTML = `<div class="col-span-full text-center text-xs text-rose-400 py-6">Failed to load captures (${err.message}).</div>`;
 				showToast(`Failed to load training images: ${err.message}`, "error");
+			}
+		}
+	}
+
+	function setPurgeModalOpen(open) {
+		if (!purgeModal) {
+			return;
+		}
+		purgeModal.classList.toggle("hidden", !open);
+		if (purgeConfirmInput) {
+			purgeConfirmInput.value = "";
+		}
+		if (btnConfirmPurge) {
+			btnConfirmPurge.disabled = true;
+		}
+		if (open && purgeConfirmInput) {
+			purgeConfirmInput.focus();
+		}
+	}
+
+	async function executeDatasetPurge() {
+		if (!purgeConfirmInput || purgeConfirmInput.value !== "DELETE") {
+			return;
+		}
+		if (btnConfirmPurge) {
+			btnConfirmPurge.disabled = true;
+		}
+		try {
+			const resp = await apiFetch("/ui/dataset", {
+				method: "DELETE",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ confirm: "DELETE" }),
+			});
+			if (!resp.ok) {
+				const errBody = await resp.json().catch(() => ({}));
+				throw new Error(errBody.detail || `HTTP ${resp.status}`);
+			}
+			const result = await resp.json();
+			setPurgeModalOpen(false);
+			datasetState.items = [];
+			renderDatasetGrid();
+			if (datasetCountBadge) {
+				datasetCountBadge.textContent = "0";
+			}
+			if (btnPurgeDataset) {
+				btnPurgeDataset.disabled = true;
+			}
+			showToast(
+				`Purged ${result.deleted_images ?? 0} images, ${result.deleted_labels ?? 0} labels, and ${result.deleted_meta ?? 0} metadata files.`,
+				"info",
+			);
+		} catch (err) {
+			showToast(`Dataset purge failed: ${err.message}`, "error");
+			if (btnConfirmPurge && purgeConfirmInput.value === "DELETE") {
+				btnConfirmPurge.disabled = false;
 			}
 		}
 	}
@@ -1095,6 +1160,32 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	if (btnDataset && datasetPanel && datasetGrid) {
+		if (btnPurgeDataset) {
+			btnPurgeDataset.addEventListener("click", () => setPurgeModalOpen(true));
+		}
+		if (btnCancelPurge) {
+			btnCancelPurge.addEventListener("click", () => setPurgeModalOpen(false));
+		}
+		if (purgeModal) {
+			purgeModal.addEventListener("click", (ev) => {
+				if (ev.target === purgeModal) {
+					setPurgeModalOpen(false);
+				}
+			});
+		}
+		if (purgeConfirmInput && btnConfirmPurge) {
+			purgeConfirmInput.addEventListener("input", () => {
+				btnConfirmPurge.disabled = purgeConfirmInput.value !== "DELETE";
+			});
+			purgeConfirmInput.addEventListener("keydown", (ev) => {
+				if (ev.key === "Enter" && purgeConfirmInput.value === "DELETE") {
+					ev.preventDefault();
+					executeDatasetPurge();
+				}
+			});
+			btnConfirmPurge.addEventListener("click", executeDatasetPurge);
+		}
+
 		if (triageImg) {
 			triageImg.addEventListener("load", () => setTriageImageLoading(false));
 			triageImg.addEventListener("error", () => setTriageImageLoading(false));
@@ -1371,9 +1462,13 @@ document.addEventListener("DOMContentLoaded", () => {
 		loadDataset(false);
 	}
 
-	// Escape closes open drawer first, then triage modal
+	// Escape closes open modal/drawer first, then triage modal
 	document.addEventListener("keydown", (ev) => {
 		if (ev.key === "Escape") {
+			if (purgeModal && !purgeModal.classList.contains("hidden")) {
+				setPurgeModalOpen(false);
+				return;
+			}
 			if (telemetryDrawer && !telemetryDrawer.classList.contains("hidden")) {
 				setDrawerOpen(false);
 				return;

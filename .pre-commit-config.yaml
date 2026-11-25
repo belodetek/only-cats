@@ -40,19 +40,19 @@ repos:
           - ultralytics
           - opencv-python-headless>=4.8.0
 
-  - repo: local
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
     hooks:
       - id: shfmt
-        name: shfmt
-        # -i 2: indent by 2 spaces, -ci: indent switch cases, -bn: binary ops like && / || like line-breaks
-        entry: shfmt -w -s -i 2 -ci
-        language: system
-        types: [shell]
+        # -i 2: indent by 2 spaces, -ci: indent switch cases, -s: simplify code
+        args: [-w, -s, -i, "2", -ci]
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
       - id: shellcheck
-        name: shellcheck
-        entry: shellcheck -x # Follow 'source' statements
-        language: system
-        types: [shell]
+        args: [-x]
 
   - repo: https://github.com/biomejs/pre-commit
     rev: v2.6.9

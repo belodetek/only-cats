@@ -26,6 +26,12 @@ _ZIP_CHUNK_SIZE = 64 * 1024
 logger = logging.getLogger(config.app_name)
 
 
+class PurgeDatasetPayload(BaseModel):  # pylint: disable=too-few-public-methods
+    """Confirmation payload required to permanently purge the dataset."""
+
+    confirm: str
+
+
 class YoloBox(BaseModel):  # pylint: disable=too-few-public-methods
     """Normalized YOLO bounding box (center-x, center-y, width, height in [0, 1])."""
 
@@ -40,6 +46,49 @@ class LabelUpdatePayload(BaseModel):  # pylint: disable=too-few-public-methods
     """Request payload for updating YOLO labels on a captured training image."""
 
     boxes: list[YoloBox]
+
+
+def purge_dataset() -> dict[str, int]:
+    """Delete all training images, YOLO .txt labels, and .json metadata files."""
+    deleted_images = 0
+    deleted_labels = 0
+    deleted_meta = 0
+
+    images_dir = Path(config.images_dir)
+    if images_dir.is_dir():
+        for path in images_dir.iterdir():
+            if (
+                path.is_file()
+                and not path.name.startswith(".")
+                and path.suffix.lower() in ALLOWED_IMAGE_EXTS
+            ):
+                path.unlink(missing_ok=True)
+                deleted_images += 1
+
+    labels_dir = Path(config.labels_dir)
+    if labels_dir.is_dir():
+        for path in labels_dir.iterdir():
+            if not path.is_file() or path.name.startswith("."):
+                continue
+            suffix = path.suffix.lower()
+            if suffix == ".txt":
+                path.unlink(missing_ok=True)
+                deleted_labels += 1
+            elif suffix == ".json":
+                path.unlink(missing_ok=True)
+                deleted_meta += 1
+
+    logger.warning(
+        "Dataset purged: %d images, %d labels, %d metadata files deleted.",
+        deleted_images,
+        deleted_labels,
+        deleted_meta,
+    )
+    return {
+        "deleted_images": deleted_images,
+        "deleted_labels": deleted_labels,
+        "deleted_meta": deleted_meta,
+    }
 
 
 def strip_image_metadata(raw_bytes: bytes, quality: int = 92) -> bytes:
