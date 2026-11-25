@@ -55,7 +55,7 @@ repos:
         types: [shell]
 
   - repo: https://github.com/biomejs/pre-commit
-    rev: v2.6.8
+    rev: v2.6.9
     hooks:
       - id: biome-check
         language_version: system
