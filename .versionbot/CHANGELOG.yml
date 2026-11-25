@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Purge dataset with confirmation"
+      hash: 1dab6001c7ddd642c26977ac658ae626e0979f16
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.21
+  title: ""
+  date: 2026-11-25T21:41:37.583Z
+- commits:
     - subject: "patch: (re)Train model"
       hash: d4227fd76432abef62762381b7472b66ec056673
       body: ""
