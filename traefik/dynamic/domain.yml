@@ -5,6 +5,8 @@ http:
       entryPoints:
         - websecure
       priority: 600
+      middlewares:
+        - oauth2-headers
       service: oauth2-proxy-svc
       {{ if eq (env "CERT_RESOLVER") "none" }}
       tls: {}
