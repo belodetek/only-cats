@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Model version"
+      hash: 7c8121a7f695f0e019bf40c4e52851daca52f401
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.23
+  title: ""
+  date: 2026-11-25T22:24:38.754Z
+- commits:
     - subject: "patch: Pre-lock pending evaluation"
       hash: 8c2cd34d650d8b617cff03b0ddead613cda31dea
       body: ""
