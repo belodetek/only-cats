@@ -7,6 +7,7 @@ import pty
 import shutil
 import socket
 import subprocess
+import threading
 import time
 import tty
 from collections import deque
@@ -38,6 +39,9 @@ STRAP_DOWNLOAD_BOOT = 0x04
 SLIP_SYNC_PREFIX = b"\xc0\x00\x08"
 SLIP_FLASH_END_FRAME = b"\xc0\x00\x04\x04\x00"
 SLIP_FLASH_DEFL_END_FRAME = b"\xc0\x00\x12\x04\x00"
+
+# Idle grace period after last SLIP TX/RX byte before exiting download mode
+DOWNLOAD_IDLE_REBOOT_SEC = 2.5
 
 
 @asynccontextmanager
@@ -74,9 +78,12 @@ class EmulatorBridge:
         self.rx_line_buf = bytearray()
         self.tx_line_buf = bytearray()
         self.tx_slip_buf = bytearray()
+        self.pty_write_buf = bytearray()
         self.disconnected = False
         self.download_mode = False
         self.slip_rx_synced = False
+        self.last_download_activity_ts = 0.0
+        self._lifecycle_lock = threading.Lock()
 
     def setup_pty(self) -> None:
         """Create a Linux PTY pair and symlink slave to VSERIAL_LINK."""
@@ -97,6 +104,7 @@ class EmulatorBridge:
     def teardown_pty(self) -> None:
         """Close PTY fds and remove VSERIAL_LINK to simulate USB unplug."""
         VSERIAL_LINK.unlink(missing_ok=True)
+        self.pty_write_buf.clear()
         for attr in ("keepalive_slave_fd", "master_fd"):
             fd = getattr(self, attr)
             if fd >= 0:
@@ -119,49 +127,56 @@ class EmulatorBridge:
 
     def start_qemu(self, download_mode: bool = False) -> None:
         """Launch QEMU ESP32-C6 with serial UART bound to localhost TCP."""
-        self.stop_qemu()
-        self.download_mode = download_mode
-        self.slip_rx_synced = False
-        self.rx_line_buf.clear()
-        self.tx_line_buf.clear()
-        self.tx_slip_buf.clear()
-        strap_val = STRAP_DOWNLOAD_BOOT if download_mode else STRAP_FLASH_BOOT
-        cmd = [
-            QEMU_BIN,
-            "-accel",
-            "tcg,thread=multi",
-            "-nographic",
-            "-machine",
-            config.esp_chip,
-            "-drive",
-            f"file={FLASH_IMG},if=mtd,format=raw",
-            "-global",
-            f"driver=esp32c6.gpio,property=strap_mode,value={strap_val}",
-            "-serial",
-            f"tcp:127.0.0.1:{QEMU_TCP_PORT},server,nowait",
-        ]
-        # pylint: disable=consider-using-with
-        self.qemu_proc = subprocess.Popen(cmd)
-        # pylint: enable=consider-using-with
-        time.sleep(0.3)
+        with self._lifecycle_lock:
+            self._stop_qemu_unlocked()
+            self.download_mode = download_mode
+            self.slip_rx_synced = False
+            self.last_download_activity_ts = 0.0
+            self.rx_line_buf.clear()
+            self.tx_line_buf.clear()
+            self.tx_slip_buf.clear()
+            self.pty_write_buf.clear()
+            strap_val = STRAP_DOWNLOAD_BOOT if download_mode else STRAP_FLASH_BOOT
+            cmd = [
+                QEMU_BIN,
+                "-nographic",
+                "-machine",
+                config.esp_chip,
+                "-drive",
+                f"file={FLASH_IMG},if=mtd,format=raw",
+                "-global",
+                f"driver=esp32c6.gpio,property=strap_mode,value={strap_val}",
+                "-serial",
+                f"tcp:127.0.0.1:{QEMU_TCP_PORT},server,nowait",
+            ]
+            # pylint: disable=consider-using-with
+            self.qemu_proc = subprocess.Popen(cmd)
+            # pylint: enable=consider-using-with
+            time.sleep(0.3)
 
-        deadline = time.monotonic() + 10.0
-        while time.monotonic() < deadline:
-            try:
-                sock = socket.create_connection(
-                    ("127.0.0.1", QEMU_TCP_PORT), timeout=0.5
-                )
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                sock.setblocking(False)
-                self.qemu_sock = sock
-                return
-            except OSError:
-                time.sleep(0.1)
-        self.stop_qemu()
-        raise RuntimeError("Timed out waiting for QEMU ESP32-C6 serial socket")
+            deadline = time.monotonic() + 20.0
+            delay = 0.05
+            while time.monotonic() < deadline:
+                try:
+                    sock = socket.create_connection(
+                        ("127.0.0.1", QEMU_TCP_PORT), timeout=1.0
+                    )
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    sock.setblocking(False)
+                    self.qemu_sock = sock
+                    return
+                except OSError:
+                    time.sleep(delay)
+                    delay = min(delay * 2, 0.5)
+            self._stop_qemu_unlocked()
+            raise RuntimeError("Timed out waiting for QEMU ESP32-C6 serial socket")
 
     def stop_qemu(self) -> None:
         """Terminate running QEMU process and close its serial socket."""
+        with self._lifecycle_lock:
+            self._stop_qemu_unlocked()
+
+    def _stop_qemu_unlocked(self) -> None:
         sock, self.qemu_sock = self.qemu_sock, None
         if sock:
             try:
@@ -173,7 +188,32 @@ class EmulatorBridge:
             self.qemu_proc.wait(timeout=5)
         self.qemu_proc = None
 
+    async def _send_all_with_backoff(self, data: bytes, timeout: float = 5.0) -> None:
+        """Reliably write all bytes to the non-blocking QEMU UART socket with backoff."""
+        view = memoryview(data)
+        sent = 0
+        delay = 0.005
+        deadline = time.monotonic() + timeout
+        while sent < len(view):
+            sock = self.qemu_sock
+            if sock is None:
+                return
+            try:
+                n = sock.send(view[sent:])
+                if n > 0:
+                    sent += n
+                    delay = 0.005
+                    continue
+            except (BlockingIOError, InterruptedError):
+                pass
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Timed out writing to QEMU UART socket")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 0.1)
+
     def _record_bytes(self, direction: str, data: bytes) -> None:
+        if self.download_mode:
+            return
         buf = self.tx_line_buf if direction == "APP_TO_ESP" else self.rx_line_buf
         buf.extend(data)
         while b"\n" in buf:
@@ -197,8 +237,9 @@ class EmulatorBridge:
 
     async def _enter_download_mode_and_wait_banner(self) -> None:
         """Reboot QEMU into UART download mode (strap_mode=0x04) and consume ROM banner."""
-        self.start_qemu(download_mode=True)
-        deadline = time.monotonic() + 5.0
+        await asyncio.to_thread(self.start_qemu, True)
+        deadline = time.monotonic() + 10.0
+        delay = 0.01
         banner = bytearray()
         while time.monotonic() < deadline:
             sock = self.qemu_sock
@@ -207,16 +248,18 @@ class EmulatorBridge:
             try:
                 chunk = sock.recv(4096)
                 if chunk:
-                    self._record_bytes("ESP_TO_APP", chunk)
                     banner.extend(chunk)
                     if (
                         b"waiting for download" in banner
                         and b"\n" in banner.split(b"waiting for download", 1)[1]
                     ):
                         return
+                    delay = 0.01
+                    continue
             except (BlockingIOError, InterruptedError, OSError):
                 pass
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(delay)
+            delay = min(delay * 1.5, 0.1)
 
     def _extract_sync_frame(self, from_app: bytes) -> bytes | None:
         """Buffer TX bytes in flash-boot mode and return the SLIP SYNC frame if seen."""
@@ -251,24 +294,43 @@ class EmulatorBridge:
                 if sync_frame is not None:
                     await self._enter_download_mode_and_wait_banner()
                     if self.qemu_sock is not None and sync_frame:
-                        self.qemu_sock.sendall(sync_frame)
+                        await self._send_all_with_backoff(sync_frame)
+                        self.last_download_activity_ts = time.monotonic()
                     return
 
             if self.qemu_sock is not None:
-                self.qemu_sock.sendall(from_app)
-            if self.download_mode and (
-                SLIP_FLASH_END_FRAME in from_app
-                or SLIP_FLASH_DEFL_END_FRAME in from_app
-            ):
-                await asyncio.sleep(0.3)
-                self.start_qemu(download_mode=False)
+                await self._send_all_with_backoff(from_app)
+            if self.download_mode:
+                self.last_download_activity_ts = time.monotonic()
+                if (
+                    SLIP_FLASH_END_FRAME in from_app
+                    or SLIP_FLASH_DEFL_END_FRAME in from_app
+                ):
+                    await asyncio.sleep(0.3)
+                    await asyncio.to_thread(self.start_qemu, False)
         except (BlockingIOError, InterruptedError):
             pass
-        except OSError as exc:
+        except (OSError, TimeoutError) as exc:
             self._record_bytes("BRIDGE_ERR", f"tx: {exc}\n".encode())
+
+    def _flush_pty_write_buf(self) -> None:
+        """Flush any pending ESP->APP bytes into the non-blocking PTY master."""
+        while self.pty_write_buf and self.master_fd >= 0:
+            try:
+                written = os.write(self.master_fd, self.pty_write_buf)
+                if written <= 0:
+                    break
+                del self.pty_write_buf[:written]
+            except (BlockingIOError, InterruptedError):
+                break
+            except OSError as exc:
+                self._record_bytes("BRIDGE_ERR", f"rx: {exc}\n".encode())
+                self.pty_write_buf.clear()
+                break
 
     def _pump_rx(self) -> None:
         """Read bytes from QEMU's UART socket and write them to the PTY master."""
+        self._flush_pty_write_buf()
         sock = self.qemu_sock
         if sock is None:
             return
@@ -277,12 +339,15 @@ class EmulatorBridge:
             if not from_esp:
                 return
             self._record_bytes("ESP_TO_APP", from_esp)
-            if self.download_mode and not self.slip_rx_synced:
-                if b"\xc0" not in from_esp:
-                    return
-                from_esp = from_esp[from_esp.index(b"\xc0") :]
-                self.slip_rx_synced = True
-            os.write(self.master_fd, from_esp)
+            if self.download_mode:
+                self.last_download_activity_ts = time.monotonic()
+                if not self.slip_rx_synced:
+                    if b"\xc0" not in from_esp:
+                        return
+                    from_esp = from_esp[from_esp.index(b"\xc0") :]
+                    self.slip_rx_synced = True
+            self.pty_write_buf.extend(from_esp)
+            self._flush_pty_write_buf()
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as exc:
@@ -296,6 +361,15 @@ class EmulatorBridge:
                 continue
             await self._pump_tx()
             self._pump_rx()
+            if (
+                self.download_mode
+                and self.slip_rx_synced
+                and self.last_download_activity_ts > 0.0
+                and (time.monotonic() - self.last_download_activity_ts)
+                >= DOWNLOAD_IDLE_REBOOT_SEC
+            ):
+                self.last_download_activity_ts = 0.0
+                await asyncio.to_thread(self.start_qemu, False)
 
 
 BRIDGE = EmulatorBridge()

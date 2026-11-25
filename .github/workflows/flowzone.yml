@@ -10,7 +10,7 @@ on:
 jobs:
   flowzone:
     name: Flowzone
-    uses: product-os/flowzone/.github/workflows/flowzone.yml@ff00e72360d4f593fcc15ffaf1a47cd2cb23ee27 # master
+    uses: product-os/flowzone/.github/workflows/flowzone.yml@ab77/compose-profiles
     secrets:
       BALENA_API_KEY: ${{ secrets.BALENA_API_KEY }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
@@ -25,9 +25,8 @@ jobs:
         carate_road/only-cats-amd64
       docker_images: |
         ghcr.io/belodetek/only-cats
-      custom_test_matrix: >
-        {
-          "value": [
-            "HiL"
-          ]
-        }
+      docker_compose_profiles: >
+        [
+          {"service": "sut"},
+          {"profile": "HiL", "service": "sut-hil"}
+        ]

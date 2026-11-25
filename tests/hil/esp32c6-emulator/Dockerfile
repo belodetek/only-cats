@@ -17,7 +17,7 @@ COPY firmware/firmware_sketch /fw/firmware_sketch
 RUN arduino-cli compile \
       --fqbn "${FQBN}" \
       --board-options "CDCOnBoot=default" \
-      --build-property "build.extra_flags=-DARDUINO_USB_CDC_ON_BOOT=0 -DARDUINO_USB_MODE=1 -DFW_VERSION=\"${FW_VERSION}\"" \
+      --build-property "build.extra_flags=-DARDUINO_USB_CDC_ON_BOOT=0 -DARDUINO_USB_MODE=1 -DQEMU_HIL=1 -DFW_VERSION=\"${FW_VERSION}\"" \
       --output-dir /fw/out \
       /fw/firmware_sketch && \
     cp /fw/out/firmware_sketch.ino.merged.bin /fw/flash_image.bin && \
