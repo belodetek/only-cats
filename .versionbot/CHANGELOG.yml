@@ -1,4 +1,33 @@
 - commits:
+    - subject: "patch: Widen OAuth CSRF cookie lifetime to reduce callback 500s"
+      hash: 490e38f2f081e340fde569c419ea42100953ef7b
+      body: >
+        oauth2-proxy returns HTTP 500 (instead of 403) at /oauth2/callback when
+        the
+
+        CSRF cookie is missing -- most commonly because the 5-minute cookie
+        expired
+
+        while the user sat on the GitHub consent screen. Widen
+        COOKIE_CSRF_EXPIRE to
+
+        15m to shrink that window.
+
+
+        This mitigates the common (expired-cookie) case only. The upstream
+        500-vs-403
+
+        behaviour and the cookies-disabled case live in oauth2-proxy and are
+        unchanged.
+      footer:
+        Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+        co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.16
+  title: ""
+  date: 2026-11-25T00:22:58.292Z
+- commits:
     - subject: "patch: slence linter"
       hash: bf90575bd4cc03e582d085a0f7e885a8e3d51a24
       body: ""
