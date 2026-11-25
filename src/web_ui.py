@@ -12,10 +12,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import config
 from dataset import (
     LabelUpdatePayload,
+    PurgeDatasetPayload,
     delete_dataset_item,
     get_image_bytes,
     iter_dataset_zip,
     list_dataset_items,
+    purge_dataset,
     save_image_labels,
 )
 from metrics import METRICS
@@ -182,3 +184,15 @@ def export_dataset_zip():
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="only-cats-dataset.zip"'},
     )
+
+
+@router.delete("/ui/dataset")
+async def ui_dataset_purge(payload: PurgeDatasetPayload) -> dict:
+    """Permanently delete all training images, labels, and JSON metadata after confirmation."""
+    if payload.confirm != "DELETE":
+        raise HTTPException(
+            status_code=400,
+            detail='Confirmation required: send {"confirm": "DELETE"}',
+        )
+    counts = purge_dataset()
+    return {"purged": True, **counts}

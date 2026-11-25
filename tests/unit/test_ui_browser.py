@@ -605,3 +605,52 @@ def test_dataset_browser_overlays_json_metadata_on_thumbnails_and_triage(
     page.locator("#btn-toggle-meta-json").click()
     expect(meta_json).to_be_visible()
     expect(meta_json).to_contain_text('"event_type": "ANIMAL"')
+
+
+def test_dataset_purge_modal_requires_delete_confirmation_in_browser(
+    page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes
+):
+    """Verify Purge button opens modal, enforces typing 'DELETE', and purges dataset."""
+    base_url, _ = live_ui_server
+    images_dir, labels_dir = tmp_data_dirs
+
+    dataset.save_clean_capture(
+        stem="prey_20261125_120000_purge",
+        raw_image_bytes=sample_jpeg_bytes,
+        boxes=[dataset.YoloBox(cls=0, x=0.5, y=0.5, w=0.2, h=0.2)],
+        meta={"event_type": "ANIMAL"},
+    )
+
+    stub_external_cdns(page, base_url)
+    page.goto(f"{base_url}/", wait_until="networkidle")
+
+    expect(page.locator("#dataset-count-badge")).to_have_text("1")
+    page.locator("#btn-dataset").click()
+    expect(page.locator("#dataset-panel")).to_be_visible()
+
+    purge_btn = page.locator("#btn-purge-dataset")
+    expect(purge_btn).to_be_enabled()
+    purge_btn.click()
+
+    purge_modal = page.locator("#purge-modal")
+    confirm_input = page.locator("#purge-confirm-input")
+    confirm_submit = page.locator("#btn-confirm-purge")
+
+    expect(purge_modal).to_be_visible()
+    expect(confirm_submit).to_be_disabled()
+
+    # Lowercase or partial input keeps confirmation button disabled
+    confirm_input.fill("delete")
+    expect(confirm_submit).to_be_disabled()
+
+    # Exact "DELETE" enables confirmation button and purges files on click
+    confirm_input.fill("DELETE")
+    expect(confirm_submit).to_be_enabled()
+    confirm_submit.click()
+
+    expect(purge_modal).to_be_hidden()
+    expect(page.locator("#dataset-count-badge")).to_have_text("0")
+    expect(purge_btn).to_be_disabled()
+    expect(page.locator("#toast")).to_contain_text("Purged 1 images")
+    assert not list(images_dir.iterdir())
+    assert not list(labels_dir.iterdir())

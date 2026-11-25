@@ -303,13 +303,20 @@ def live_ui_server():
         lifespan="off",
     )
     server = uvicorn.Server(config_uv)
+    server.install_signal_handlers = lambda: None
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
     base_url = f"http://127.0.0.1:{port}"
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     deadline = time.time() + 5.0
-    while not server.started and time.time() < deadline:
-        time.sleep(0.02)
+    while time.time() < deadline:
+        try:
+            with opener.open(f"{base_url}/health", timeout=0.5) as resp:
+                if resp.status == 200:
+                    break
+        except Exception:  # pylint: disable=broad-exception-caught
+            time.sleep(0.02)
 
     yield base_url, state
 

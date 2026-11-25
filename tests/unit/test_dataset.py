@@ -150,3 +150,36 @@ def test_dataset_api_surfaces_metadata_and_strips_exif_on_serve(tmp_data_dirs):
     assert b"LEGACY-CAM-SERIAL" not in img_resp.content
     with Image.open(io.BytesIO(img_resp.content)) as served:
         assert len(served.getexif()) == 0
+
+
+def test_dataset_api_purge_requires_delete_confirmation(tmp_data_dirs):
+    """Verify DELETE /ui/dataset requires 'DELETE' confirmation and wipes images/labels/json."""
+    images_dir, labels_dir = tmp_data_dirs
+
+    _write_sample_capture(images_dir, labels_dir, "prey_01.jpg", "0 0.5 0.5 0.2 0.2\n")
+    _write_sample_capture(images_dir, labels_dir, "train_02.jpg", "")
+    (labels_dir / "prey_01.json").write_text(
+        '{"event_type": "ANIMAL"}', encoding="utf-8"
+    )
+    (labels_dir / "train_02.json").write_text(
+        '{"event_type": "TRAINING"}', encoding="utf-8"
+    )
+
+    client = TestClient(only_cats.app, headers={"X-Requested-With": "fetch"})
+
+    # Reject wrong/lowercase confirmation string
+    bad_resp = client.request("DELETE", "/ui/dataset", json={"confirm": "delete"})
+    assert bad_resp.status_code == 400
+    assert len(list(images_dir.glob("*.jpg"))) == 2
+
+    # Accept exact "DELETE" confirmation and remove all images, labels, and JSON sidecars
+    ok_resp = client.request("DELETE", "/ui/dataset", json={"confirm": "DELETE"})
+    assert ok_resp.status_code == 200
+    assert ok_resp.json() == {
+        "purged": True,
+        "deleted_images": 2,
+        "deleted_labels": 2,
+        "deleted_meta": 2,
+    }
+    assert not list(images_dir.iterdir())
+    assert not list(labels_dir.iterdir())

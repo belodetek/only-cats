@@ -67,6 +67,9 @@ def test_ui_root_serves_html_and_static_assets():
     assert 'id="btn-drawer"' in resp.text
     assert 'id="telemetry-drawer"' in resp.text
     assert 'href="/metrics"' in resp.text
+    assert 'id="btn-purge-dataset"' in resp.text
+    assert 'id="purge-modal"' in resp.text
+    assert 'id="purge-confirm-input"' in resp.text
 
     # Versioned static asset gets immutable Cache-Control + gzip compression
     js_resp = client.get(
@@ -115,14 +118,20 @@ def test_friendly_html_404_for_browsers_and_json_for_api():
 
 
 def test_csrf_blocks_cross_origin_and_headerless_ui_posts():
-    """Verify state-changing /ui/* endpoints reject cross-origin or headerless POSTs."""
+    """Verify state-changing /ui/* endpoints reject cross-origin or headerless requests."""
     client = TestClient(only_cats.app)
 
     # 1. Bare form POST without X-Requested-With -> 403
     no_header = client.post("/ui/lock")
     assert no_header.status_code == 403
 
-    # 2. Cross-origin fetch with mismatched Origin -> 403
+    # 2. Bare DELETE /ui/dataset without X-Requested-With -> 403
+    no_header_purge = client.request(
+        "DELETE", "/ui/dataset", json={"confirm": "DELETE"}
+    )
+    assert no_header_purge.status_code == 403
+
+    # 3. Cross-origin fetch with mismatched Origin -> 403
     bad_origin = client.post(
         "/ui/unlock",
         headers={

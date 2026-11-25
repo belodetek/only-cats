@@ -195,7 +195,7 @@
 				></pre>
 			</section>
 
-			<!-- Dataset Browser Drawer -->
+            <!-- Dataset Browser Drawer -->
 			<section
 				id="dataset-panel"
 				class="hidden w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 p-4 sm:p-5 mb-4"
@@ -205,13 +205,20 @@
 						<i data-lucide="database" class="w-4 h-4"></i>
 						<span>Training Captures</span>
 					</div>
-					<div class="flex items-center gap-3">
+					<div class="flex items-center gap-2">
 						<a
 							href="/ui/dataset/export.zip"
 							class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
 						>
 							Export ZIP
 						</a>
+						<button
+							id="btn-purge-dataset"
+							type="button"
+							class="text-xs px-2.5 py-1 rounded-lg bg-rose-950/90 hover:bg-rose-900 border border-rose-800 text-rose-200 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+						>
+							Purge
+						</button>
 						<button
 							id="btn-close-dataset"
 							type="button"
@@ -536,6 +543,76 @@
 							Next →
 						</button>
 					</div>
+				</div>
+			</div>
+		</div>
+
+        <!-- Fail-Safe Dataset Purge Confirmation Modal -->
+		<div
+			id="purge-modal"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="purge-modal-title"
+			class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-[1px] flex items-center justify-center p-4"
+		>
+			<div
+				class="w-full max-w-md rounded-2xl bg-slate-900 border border-rose-800/70 shadow-2xl p-5 flex flex-col gap-4"
+			>
+				<div class="flex items-start gap-3">
+					<div
+						class="p-2 rounded-xl bg-rose-950/90 border border-rose-800 text-rose-400 shrink-0"
+					>
+						<i data-lucide="trash-2" class="w-5 h-5"></i>
+					</div>
+					<div>
+						<h2
+							id="purge-modal-title"
+							class="text-base font-semibold text-slate-100"
+						>
+							Purge Training Dataset?
+						</h2>
+						<p class="text-xs text-slate-400 mt-1 leading-relaxed">
+							This will permanently delete all captured images, YOLO
+							<code class="text-slate-300">.txt</code> labels, and
+							<code class="text-slate-300">.json</code> metadata files from disk.
+							This action cannot be undone.
+						</p>
+					</div>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<label
+						for="purge-confirm-input"
+						class="text-xs text-slate-300"
+					>
+						Type <span class="font-mono font-semibold text-rose-400">DELETE</span> to confirm:
+					</label>
+					<input
+						id="purge-confirm-input"
+						type="text"
+						autocomplete="off"
+						spellcheck="false"
+						placeholder="DELETE"
+						class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-rose-500 focus:outline-none text-sm font-mono text-slate-100"
+					>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-1">
+					<button
+						id="btn-cancel-purge"
+						type="button"
+						class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 cursor-pointer"
+					>
+						Cancel
+					</button>
+					<button
+						id="btn-confirm-purge"
+						type="button"
+						disabled
+						class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+					>
+						Purge All Data
+					</button>
 				</div>
 			</div>
 		</div>
