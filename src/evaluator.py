@@ -17,7 +17,7 @@ import dataset
 from metrics import METRICS
 from notifications import persist_and_notify
 from state import AppState
-from vision import run_inference
+from vision import compute_sharpness, run_inference
 
 logger = logging.getLogger(config.app_name)
 
@@ -59,8 +59,21 @@ def _persist_clean_pair(
     top_result: Any,
     prefix: str = "prey",
     meta: Optional[dict[str, Any]] = None,
-) -> tuple[str, str]:
-    """Persist metadata-stripped JPEG, YOLO .txt labels, and sidecar .json."""
+) -> Optional[tuple[str, str]]:
+    """Persist metadata-stripped JPEG, YOLO .txt labels, and sidecar .json if sharp enough."""
+    sharpness = compute_sharpness(raw_bytes)
+    if meta is not None:
+        meta["sharpness"] = round(sharpness, 1)
+
+    if sharpness < config.min_blur_variance:
+        logger.info(
+            "Skipping dataset persistence for blurry %s frame (sharpness=%.1f < %.1f).",
+            prefix,
+            sharpness,
+            config.min_blur_variance,
+        )
+        return None
+
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     stem = f"{prefix}_{stamp}" if prefix else stamp
     boxes = _yolo_boxes_from_result(top_result)
@@ -122,7 +135,7 @@ async def _handle_prey_match(
 
     def _persist_with_meta(
         _img: np.ndarray, result: Any, prefix: str = "prey"
-    ) -> tuple[str, str]:
+    ) -> Optional[tuple[str, str]]:
         return _persist_clean_pair(raw_bytes, result, prefix=prefix, meta=event_data)
 
     METRICS.record_prey_detection(detections, is_test=is_test)

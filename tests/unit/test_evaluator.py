@@ -1,15 +1,18 @@
-# pylint: disable=import-error
+# pylint: disable=import-error,no-member
 """Unit tests for evaluator.py YOLO inference, locking, and training persistence."""
 
 import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import cv2
 import httpx
+import numpy as np
 import pytest
 
 import config
 import evaluator
+import only_cats
 from state import AppState
 from tests.conftest import make_yolo_result
 
@@ -259,3 +262,108 @@ async def test_fetch_and_evaluate_throttles_concurrent_bursts(sample_jpeg_bytes)
 
     assert max_active == 1
     assert state.http_client.get.await_count <= 2
+
+
+def _make_blurry_jpeg_bytes() -> bytes:
+    """Encode a smooth, low-contrast frame with Laplacian variance well below 65.0."""
+    frame = np.full((128, 128, 3), 120, dtype=np.uint8)
+    # Soft Gaussian gradient with no sharp edges
+    cv2.circle(frame, (64, 64), 30, (130, 130, 130), -1)
+    frame = cv2.GaussianBlur(frame, (31, 31), 10.0)
+    ok, buf = cv2.imencode(".jpg", frame)
+    assert ok
+    return buf.tobytes()
+
+
+async def test_blurry_prey_frame_locks_door_without_persisting_dataset_pair(
+    tmp_data_dirs, monkeypatch
+):
+    """Blurry frames must still trigger lock + Signal alert, but not save to images/ or labels/."""
+    images_dir, labels_dir = tmp_data_dirs
+    monkeypatch.setattr(config, "min_blur_variance", 65.0)
+    monkeypatch.setattr(config, "signal_sender", "")
+    monkeypatch.setattr(config, "signal_recipients", [])
+
+    blurry_bytes = _make_blurry_jpeg_bytes()
+    decoded_img = cv2.imdecode(
+        np.frombuffer(blurry_bytes, dtype=np.uint8), cv2.IMREAD_COLOR
+    )
+
+    model = MagicMock()
+    model.names = {0: "prey"}
+    yolo_result = make_yolo_result([(0, 0.91, [0.5, 0.5, 0.3, 0.3])])
+    monkeypatch.setattr(
+        evaluator, "run_inference", lambda *_args: (decoded_img, [yolo_result])
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = blurry_bytes
+
+    http_client = AsyncMock()
+    http_client.get.return_value = mock_resp
+
+    controller = MagicMock()
+    controller.trigger_lock.return_value = True
+    controller.admin_override = None
+
+    state = only_cats.AppState(
+        controller=controller,
+        model=model,
+        http_client=http_client,
+    )
+
+    await evaluator.fetch_and_evaluate(
+        state,
+        camera_base_url="http://mock-camera:8080",
+        webhook_event={"alarm_type": "ANIMAL"},
+    )
+
+    # Door lock must still engage on valid prey detection
+    controller.trigger_lock.assert_called_once_with(config.lockout_duration_sec)
+    # Neither image nor label/metadata files should be persisted
+    assert not list(images_dir.iterdir())
+    assert not list(labels_dir.iterdir())
+
+
+async def test_blurry_training_frame_is_not_persisted(tmp_data_dirs, monkeypatch):
+    """When IN_TRAINING is enabled, blurry non-prey frames must also be skipped."""
+    images_dir, labels_dir = tmp_data_dirs
+    monkeypatch.setattr(config, "in_training", True)
+    monkeypatch.setattr(config, "min_blur_variance", 65.0)
+
+    blurry_bytes = _make_blurry_jpeg_bytes()
+    decoded_img = cv2.imdecode(
+        np.frombuffer(blurry_bytes, dtype=np.uint8), cv2.IMREAD_COLOR
+    )
+
+    model = MagicMock()
+    model.names = {0: "prey"}
+    empty_result = make_yolo_result([])
+    monkeypatch.setattr(
+        evaluator, "run_inference", lambda *_args: (decoded_img, [empty_result])
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = blurry_bytes
+
+    http_client = AsyncMock()
+    http_client.get.return_value = mock_resp
+
+    controller = MagicMock()
+    state = only_cats.AppState(
+        controller=controller,
+        model=model,
+        http_client=http_client,
+    )
+
+    await evaluator.fetch_and_evaluate(
+        state,
+        camera_base_url="http://mock-camera:8080",
+        webhook_event={"alarm_type": "ANIMAL"},
+    )
+
+    controller.trigger_lock.assert_not_called()
+    assert not list(images_dir.iterdir())
+    assert not list(labels_dir.iterdir())

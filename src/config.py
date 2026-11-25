@@ -75,6 +75,8 @@ in_training = os.getenv("IN_TRAINING", "false").strip().lower() in (
 conf_threshold: float = float(os.getenv("CONF_THRESHOLD", "0.55"))
 target_classes: str = os.getenv("TARGET_CLASSES", "prey")
 target_classes = {item.strip() for item in target_classes.split(",") if item.strip()}
+# 60–100 is a typical threshold for 640px/1080p cat-flap snapshots
+min_blur_variance = float(os.getenv("MIN_BLUR_VARIANCE", "65.0"))
 
 # Seeed XIAO ESP32-C3: esp32c3
 # Seeed XIAO ESP32-S3: esp32s3

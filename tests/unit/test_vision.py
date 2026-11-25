@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image
 
 # pylint: enable=import-error
+import config
 import dataset
 import evaluator
 import vision
@@ -60,9 +61,10 @@ def test_run_inference_returns_none_for_corrupt_bytes():
 
 
 def test_persist_clean_pair_strips_exif_writes_metadata_and_keeps_yolo_zip_clean(
-    tmp_data_dirs,
+    tmp_data_dirs, monkeypatch
 ):
     """Verify EXIF is stripped from persisted JPEGs and webhook meta lives only in .json."""
+    monkeypatch.setattr(config, "min_blur_variance", 0.0)
     images_dir, labels_dir = tmp_data_dirs
     raw_exif_jpeg = _jpeg_with_exif()
     assert b"RLC-810A-SECRET-SERIAL" in raw_exif_jpeg
