@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Don't persist blurry images"
+      hash: f9752f9be18a10dee7a95bd71b8f3033eb2b1fba
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.17
+  title: ""
+  date: 2026-11-25T01:17:28.208Z
+- commits:
     - subject: "patch: Widen OAuth CSRF cookie lifetime to reduce callback 500s"
       hash: 490e38f2f081e340fde569c419ea42100953ef7b
       body: >
