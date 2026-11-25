@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	const footerState = {
 		appVersion: "",
 		firmwareVersion: "",
+		modelDate: "",
 		repoUrl: "",
 	};
 
@@ -121,6 +122,9 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 			if (footerState.firmwareVersion) {
 				prefixParts.push(`fw ${footerState.firmwareVersion}`);
+			}
+			if (footerState.modelDate) {
+				prefixParts.push(`model ${footerState.modelDate}`);
 			}
 			prefixParts.push("© ");
 
@@ -439,7 +443,9 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 			const data = await resp.json();
 			const fw = data.esp32_firmware || {};
+			const modelMeta = data.model_metadata || {};
 			footerState.firmwareVersion = fw.version || "";
+			footerState.modelDate = modelMeta.short_date || "";
 			renderFooterMeta();
 			updateStatusBadge(data);
 
@@ -460,6 +466,17 @@ document.addEventListener("DOMContentLoaded", () => {
 				const fwLabel = fwMismatch
 					? `${fwBaseLabel} (local: ${fw.local_version})`
 					: fwBaseLabel;
+				const modelDetails = [
+					modelMeta.version ? `v${modelMeta.version}` : null,
+					modelMeta.short_date || null,
+				]
+					.filter(Boolean)
+					.join(" · ");
+				const modelLabel = !data.model_loaded
+					? "Missing"
+					: modelDetails
+						? `Loaded (${modelDetails})`
+						: "Loaded";
 				const rows = [
 					[
 						"Service Status",
@@ -476,11 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
 						fwLabel,
 						fwMismatch ? "text-amber-400" : "text-slate-100",
 					],
-					[
-						"YOLO Model",
-						data.model_loaded ? "Loaded" : "Missing",
-						"text-slate-100",
-					],
+					["YOLO Model", modelLabel, "text-slate-100"],
 					[
 						"Lock Engaged",
 						data.lock_engaged ? "Yes (Closed)" : "No (Open)",

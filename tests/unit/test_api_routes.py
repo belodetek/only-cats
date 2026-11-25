@@ -397,3 +397,30 @@ def test_health_handles_missing_esp32_firmware_descriptors():
         "sha256": None,
         "local_version": None,
     }
+
+
+def test_model_metadata_endpoint_and_health_inclusion(tmp_path, monkeypatch):
+    """Verify /model/metadata returns parsed OpenVINO YAML and /health exposes date/version."""
+    weights_dir = tmp_path / "best_openvino_model"
+    weights_dir.mkdir()
+    (weights_dir / "metadata.yaml").write_text(
+        'date: "2026-11-25T12:21:45.531191-07:00"\n'
+        'version: "8.4.218"\n'
+        "task: detect\n"
+        "imgsz:\n  - 1280\n  - 1280\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "model_weights_path", str(weights_dir))
+    only_cats.app.state.deps = _make_state()
+
+    client = TestClient(only_cats.app)
+
+    meta_resp = client.get("/model/metadata")
+    assert meta_resp.status_code == 200
+    assert meta_resp.json()["short_date"] == "2026-11-25"
+    assert meta_resp.json()["metadata"]["version"] == "8.4.218"
+
+    health_resp = client.get("/health")
+    assert health_resp.status_code == 200
+    assert health_resp.json()["model_metadata"]["version"] == "8.4.218"
+    assert health_resp.json()["model_metadata"]["short_date"] == "2026-11-25"

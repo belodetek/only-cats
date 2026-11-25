@@ -23,6 +23,7 @@ from evaluator import fetch_and_evaluate
 from metrics import METRICS
 from state import AppState
 from utils import resolve_camera_url, verify_secret
+from vision import format_model_date, load_model_metadata
 
 _SENSITIVE_QUERY_KEYS = {"secret", "token", "api_key", "apikey", "password"}
 _SENSITIVE_HEADERS = {
@@ -207,11 +208,26 @@ async def health(request: Request) -> dict:
 
     chip_desc = getattr(deps, "esp32_chip_desc", None)
     local_desc = getattr(deps, "esp32_local_desc", None)
+    raw_model_meta = getattr(deps, "model_metadata", None) or load_model_metadata(
+        config.model_weights_path
+    )
+    raw_model_date = raw_model_meta.get("date")
+    raw_model_version = raw_model_meta.get("version")
 
     return {
         "status": "healthy",
         "serial_connected": is_serial_ok,
         "model_loaded": is_model_loaded,
+        "model_metadata": {
+            "version": (
+                str(raw_model_version) if raw_model_version is not None else None
+            ),
+            "date": str(raw_model_date) if raw_model_date is not None else None,
+            "short_date": format_model_date(raw_model_date),
+            "task": raw_model_meta.get("task"),
+            "imgsz": raw_model_meta.get("imgsz"),
+            "description": raw_model_meta.get("description"),
+        },
         "lock_engaged": is_lock_active,
         "admin_override": admin_override,
         "lockout_remaining_seconds": round(remaining_lockout, 1),
@@ -225,4 +241,23 @@ async def health(request: Request) -> dict:
             ),
             "local_version": local_desc.version if local_desc else None,
         },
+    }
+
+
+@router.get("/model/metadata")
+async def model_metadata(request: Request) -> dict:
+    """Return parsed OpenVINO metadata.yaml for the active detection model."""
+    deps: "AppState" = request.app.state.deps
+    meta = getattr(deps, "model_metadata", None) or load_model_metadata(
+        config.model_weights_path
+    )
+    if not meta:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Model metadata not found for {config.model_weights_path}",
+        )
+    return {
+        "weights_path": config.model_weights_path,
+        "short_date": format_model_date(meta.get("date")),
+        "metadata": meta,
     }
