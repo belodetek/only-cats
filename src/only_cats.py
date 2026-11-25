@@ -34,6 +34,7 @@ from dispenser import trigger_dispenser
 from esp32 import ESP32SerialController
 from flasher import auto_flash_esp32_if_updated
 from state import AppState
+from vision import load_model_metadata
 
 logging.basicConfig(
     format="%(asctime)s - %(message)s", encoding="utf-8", level=config.level
@@ -100,7 +101,18 @@ async def lifespan(app_instance: FastAPI):
 
     if os.path.exists(config.model_weights_path):
         state.model = YOLO(config.model_weights_path)
-        logger.info("Loaded custom weights from %s", config.model_weights_path)
+        state.model_metadata = load_model_metadata(config.model_weights_path)
+        if state.model_metadata:
+            logger.info(
+                "Loaded custom weights from %s (date=%s, version=%s, task=%s, imgsz=%s)",
+                config.model_weights_path,
+                state.model_metadata.get("date", "unknown"),
+                state.model_metadata.get("version", "unknown"),
+                state.model_metadata.get("task", "unknown"),
+                state.model_metadata.get("imgsz", "unknown"),
+            )
+        else:
+            logger.info("Loaded custom weights from %s", config.model_weights_path)
     else:
         logger.error(
             "Weights file missing at %s! Check path.", config.model_weights_path

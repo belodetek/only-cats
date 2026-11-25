@@ -1,12 +1,43 @@
 # pylint: disable=no-member
-"""YOLO inference helpers."""
+"""YOLO inference and OpenVINO model metadata helpers."""
+
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 # pylint: disable=import-error
 import cv2
 import numpy as np
+import yaml
 from ultralytics import YOLO
 
 # pylint: enable=import-error
+
+
+def load_model_metadata(weights_path: str | Path) -> dict[str, Any]:
+    """Read Ultralytics OpenVINO metadata.yaml from weights_path directory if present."""
+    base = Path(weights_path)
+    meta_file = (
+        base / "metadata.yaml" if base.is_dir() else base.parent / "metadata.yaml"
+    )
+    if not meta_file.is_file():
+        return {}
+    try:
+        parsed = yaml.safe_load(meta_file.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def format_model_date(raw_date: Any) -> str | None:
+    """Return YYYY-MM-DD from an ISO-8601 metadata date string, or None if missing."""
+    if not raw_date:
+        return None
+    text = str(raw_date).strip()
+    try:
+        return datetime.fromisoformat(text).strftime("%Y-%m-%d")
+    except ValueError:
+        return text[:10] if len(text) >= 10 else text
 
 
 def compute_sharpness(image_bytes: bytes) -> float:

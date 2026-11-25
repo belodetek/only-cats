@@ -1,8 +1,8 @@
 """Shared runtime dependency container for the FastAPI application."""
 
 import asyncio
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 # pylint: disable=import-error
 import httpx
@@ -26,3 +26,4 @@ class AppState:
     esp32_local_desc: Optional[AppDescriptor] = None
     eval_semaphore: Optional[asyncio.Semaphore] = None
     pending_evaluations: int = 0
+    model_metadata: dict[str, Any] = field(default_factory=dict)

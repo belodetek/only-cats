@@ -92,8 +92,9 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     page.locator("#btn-close-info").click()
     expect(page.locator("#health-panel")).to_be_hidden()
 
-    # 6. Verify footer rendering
-    expect(page.locator("#footer-meta")).to_contain_text("v0.0.0 · © belodetek 2026")
+    # 6. Verify footer rendering (includes app version and optional model date)
+    expect(page.locator("#footer-meta")).to_contain_text("v0.0.0 ·")
+    expect(page.locator("#footer-meta")).to_contain_text("© belodetek 2026")
     repo_link = page.locator("#footer-repo-link")
     expect(repo_link).to_be_visible()
     expect(repo_link).to_have_attribute(
@@ -242,8 +243,8 @@ def test_esp32_disconnected_disables_controls_and_highlights_health(
     expect(esp_cell).to_have_class(re.compile(r"text-amber-400"))
 
 
-def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
-    """Verify Info panel renders the running ESP32 firmware short Git SHA."""
+def test_ui_displays_esp32_firmware_and_model_metadata(page: Page, live_ui_server):
+    """Verify Info panel and footer render ESP32 firmware SHA and OpenVINO model date/version."""
     base_url, _ = live_ui_server
     stub_external_cdns(page, base_url)
     page.route(
@@ -252,6 +253,8 @@ def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
             status=200,
             content_type="application/json",
             body='{"status":"healthy","serial_connected":true,"model_loaded":true,'
+            '"model_metadata":{"version":"8.4.218","date":"2026-11-25T12:21:45.531191-07:00",'
+            '"short_date":"2026-11-25","task":"detect","imgsz":[1280,1280]},'
             '"lock_engaged":false,"admin_override":null,"lockout_remaining_seconds":0.0,'
             '"esp32_firmware":{"version":"a1b2c3d","built":"Nov 20 2026 12:00:00",'
             '"sha256":"deadbeef","local_version":"a1b2c3d"}}',
@@ -262,15 +265,19 @@ def test_ui_displays_esp32_firmware_version(page: Page, live_ui_server):
     page.locator("#btn-info").click()
 
     expect(page.locator("#footer-meta")).to_have_text(
-        "v0.0.0 · fw a1b2c3d · © belodetek 2026"
+        "v0.0.0 · fw a1b2c3d · model 2026-11-25 · © belodetek 2026"
     )
-    page.locator("#btn-info").click()
     fw_cell = (
         page.locator("#health-grid > div", has_text="ESP32 Firmware")
         .locator("div")
         .nth(1)
     )
     expect(fw_cell).to_have_text("a1b2c3d (deadbeef)")
+
+    model_cell = (
+        page.locator("#health-grid > div", has_text="YOLO Model").locator("div").nth(1)
+    )
+    expect(model_cell).to_have_text("Loaded (v8.4.218 · 2026-11-25)")
 
 
 def test_ui_warns_on_esp32_firmware_version_mismatch(page: Page, live_ui_server):
