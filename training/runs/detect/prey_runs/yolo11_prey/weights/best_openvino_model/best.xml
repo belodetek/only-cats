@@ -10786,7 +10786,7 @@
 			<is_python_object value="True" />
 		</conversion_parameters>
 		<model_info>
-			<iou_threshold value="0.7" />
+			<iou_threshold value="0.5" />
 			<labels value="prey" />
 			<model_type value="YOLO" />
 			<pad_value value="114" />
