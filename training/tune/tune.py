@@ -15,7 +15,7 @@ OPENVINO_OUT_DIR = Path(
     "../runs/detect/prey_runs/yolo11_prey/weights/best_openvino_model"
 )
 DATASET_DIR = Path(".").resolve()
-DATASET_YAML = DATASET_DIR / "dataset.yaml"
+DATASET_YAML = DATASET_DIR / "data.yaml"
 IMGSZ = 1280  # Matches 4K Reolink snapshots; keep aligned with model.predict(imgsz=...)
 
 
