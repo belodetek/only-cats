@@ -1,7 +1,9 @@
 """Web UI router for manual lock/unlock controls, diagnostics, and camera redirect."""
 
+import asyncio
 import hashlib
 import html
+import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -19,6 +21,8 @@ from dataset import (
     list_dataset_items,
     purge_dataset,
     save_image_labels,
+    subscribe_dataset_events,
+    unsubscribe_dataset_events,
 )
 from metrics import METRICS
 
@@ -93,6 +97,36 @@ async def ui_error_page(request: Request, code: int) -> HTMLResponse:
     return render_error_response(
         request, safe_code
     )  # returns HTML when Accept includes text/html
+
+
+@router.get("/ui/dataset/events")
+async def ui_dataset_events(request: Request) -> StreamingResponse:
+    """Stream real-time dataset count and new-capture notifications via SSE."""
+    sub = subscribe_dataset_events()
+    _, queue = sub
+
+    async def _event_stream():
+        try:
+            yield ": connected\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    yield f"event: dataset\ndata: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            unsubscribe_dataset_events(sub)
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/ui/metrics")

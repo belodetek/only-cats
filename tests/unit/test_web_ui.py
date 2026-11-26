@@ -1,13 +1,16 @@
-"""Unit tests for web_ui.py static UI delivery and admin override controls."""
+"""Unit tests for web_ui.py static UI delivery, SSE events, and admin override controls."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import urlsplit
 
 # pylint: disable=import-error
+import httpx
 from fastapi.testclient import TestClient
 
 # pylint: enable=import-error
 import config
+import dataset
 import only_cats
 from tests.conftest import assert_admin_lock_unlock_flow, bind_admin_override_mock
 
@@ -23,6 +26,38 @@ def _make_ui_state() -> only_cats.AppState:
         model=MagicMock(),
         http_client=AsyncMock(),
     )
+
+
+def test_ui_dataset_events_streams_sse_on_capture(
+    live_ui_server, tmp_data_dirs, sample_jpeg_bytes
+):
+    """GET /ui/dataset/events must stream an 'event: dataset' SSE frame when a capture is saved."""
+    base_url, _ = live_ui_server
+    _ = tmp_data_dirs
+
+    lines: list[str] = []
+    with httpx.stream("GET", f"{base_url}/ui/dataset/events", timeout=5.0) as resp:
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+
+        for line in resp.iter_lines():
+            if line == ": connected":
+                dataset.save_clean_capture(
+                    stem="train_20261125_210100_sse",
+                    raw_image_bytes=sample_jpeg_bytes,
+                    boxes=[],
+                    meta={"event_type": "TRAINING"},
+                )
+                continue
+            if line and not line.startswith(":"):
+                lines.append(line)
+            if line.startswith("data: "):
+                break
+
+    assert lines[0] == "event: dataset"
+    payload = json.loads(lines[1].removeprefix("data: "))
+    assert payload["action"] == "created"
+    assert payload["counts"]["all"] == 1
 
 
 def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
@@ -63,6 +98,7 @@ def test_ui_root_serves_html_and_static_assets():
     assert "onlyCat(s)" in resp.text
     assert "/static/logo.png" in resp.text
     assert "/static/app.js" in resp.text
+    assert 'id="btn-auto"' in resp.text
     assert 'id="triage-meta-bar"' in resp.text
     assert 'id="btn-drawer"' in resp.text
     assert 'id="telemetry-drawer"' in resp.text
@@ -70,7 +106,6 @@ def test_ui_root_serves_html_and_static_assets():
     assert 'id="btn-purge-dataset"' in resp.text
     assert 'id="purge-modal"' in resp.text
     assert 'id="purge-confirm-input"' in resp.text
-    assert 'id="btn-auto"' in resp.text
 
     # Versioned static asset gets immutable Cache-Control + gzip compression
     js_resp = client.get(

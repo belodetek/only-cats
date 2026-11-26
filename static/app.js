@@ -150,9 +150,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	renderFooterMeta();
 
-	function showToast(message, variant = "info") {
+	let toastTimer = null;
+
+	function showToast(message, variant = "info", autoDismissMs = 0) {
 		if (!toast) {
 			return;
+		}
+		if (toastTimer) {
+			clearTimeout(toastTimer);
+			toastTimer = null;
 		}
 		const styles = {
 			lock: "bg-rose-950/80 border-rose-700 text-rose-200",
@@ -164,6 +170,60 @@ document.addEventListener("DOMContentLoaded", () => {
 		toast.className = `rounded-xl px-4 py-3 text-sm font-medium border text-center ${styles[variant] || styles.info}`;
 		toast.textContent = message;
 		toast.classList.remove("hidden");
+
+		if (autoDismissMs > 0) {
+			toastTimer = setTimeout(() => {
+				toast.classList.add("hidden");
+				toastTimer = null;
+			}, autoDismissMs);
+		}
+	}
+
+	function pulseDatasetBadge(totalCount) {
+		if (!datasetCountBadge) {
+			return;
+		}
+		datasetCountBadge.textContent = String(totalCount);
+		datasetCountBadge.className =
+			"text-xs px-2 py-0.5 rounded-full bg-sky-500/25 text-sky-200 ring-2 ring-sky-400 transition-all duration-300";
+		setTimeout(() => {
+			datasetCountBadge.className =
+				"text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 transition-all duration-300";
+		}, 2000);
+	}
+
+	function connectDatasetEventStream() {
+		if (typeof EventSource === "undefined") {
+			return;
+		}
+		const es = new EventSource("/ui/dataset/events");
+		es.addEventListener("dataset", (ev) => {
+			try {
+				const data = JSON.parse(ev.data);
+				const total = Number(data.counts?.all ?? 0);
+				if (btnPurgeDataset) {
+					btnPurgeDataset.disabled = total === 0;
+				}
+				if (data.action === "created") {
+					pulseDatasetBadge(total);
+					const kind = data.event_type ? ` (${data.event_type})` : "";
+					showToast(`New training capture saved${kind}`, "info", 4000);
+				} else if (datasetCountBadge) {
+					datasetCountBadge.textContent = String(total);
+				}
+				// Refresh grid if drawer is open and user isn't mid-triage
+				const panelOpen =
+					datasetPanel && !datasetPanel.classList.contains("hidden");
+				const triageClosed =
+					!triageModal || triageModal.classList.contains("hidden");
+				if (panelOpen && triageClosed) {
+					loadDataset(false);
+				}
+			} catch (_err) {
+				// Ignore malformed SSE frames
+			}
+		});
+		window.addEventListener("beforeunload", () => es.close(), { once: true });
 	}
 
 	function setLockControlsEnabled(enabled, hasOverride = false) {
@@ -1495,6 +1555,7 @@ document.addEventListener("DOMContentLoaded", () => {
 		}
 
 		loadDataset(false);
+		connectDatasetEventStream();
 	}
 
 	// Escape closes open modal/drawer first, then triage modal
