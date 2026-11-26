@@ -56,7 +56,7 @@
     python3 tune.py
 
     # .. and test new weights against a test image (e.g. last missed prey detection)
-    python3 test.py --image "images/$(ls -t images/ | head -n 1)" --conf 0.35
+    python3 test.py --image "images/$(ls -t images/ | head -n 1)" --conf 0.55
 
 
 [scp-uuid]: https://github.com/pdcastro/ssh-uuid#file-transfer-with-scp
