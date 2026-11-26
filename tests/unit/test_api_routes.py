@@ -318,7 +318,8 @@ def test_animal_webhook_prelock_expires_without_dispense_when_no_prey(monkeypatc
 
 
 def test_admin_lock_and_unlock_endpoints():
-    """Verify /lock and /unlock enforce auth, update controller state, and reflect in /health."""
+    """Verify /lock, /unlock, and /auto enforce auth, update controller state,
+    and reflect in /health."""
     state = _make_state()
     bind_admin_override_mock(state.controller)
     only_cats.app.state.deps = state
@@ -328,6 +329,7 @@ def test_admin_lock_and_unlock_endpoints():
 
     assert client.post("/lock").status_code == 401
     assert client.post("/unlock").status_code == 401
+    assert client.post("/auto").status_code == 401
 
     assert_admin_lock_unlock_flow(
         client=client,
@@ -336,6 +338,8 @@ def test_admin_lock_and_unlock_endpoints():
         unlock_url="/unlock",
         lock_kwargs={"headers": {"X-Webhook-Secret": secret}},
         unlock_kwargs={"params": {"secret": secret}},
+        auto_url="/auto",
+        auto_kwargs={"headers": {"X-Webhook-Secret": secret}},
     )
 
 

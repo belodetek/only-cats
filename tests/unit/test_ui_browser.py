@@ -28,6 +28,17 @@ def _assert_security_headers(headers: dict[str, str]) -> None:
     assert "default-src 'self'" in csp
 
 
+def _assert_footer_rendered(page: Page) -> None:
+    """Verify footer version metadata and repository link render."""
+    expect(page.locator("#footer-meta")).to_contain_text("v0.0.0 ·")
+    expect(page.locator("#footer-meta")).to_contain_text("© belodetek 2026")
+    repo_link = page.locator("#footer-repo-link")
+    expect(repo_link).to_be_visible()
+    expect(repo_link).to_have_attribute(
+        "href", "https://github.com/belodetek/only-cats"
+    )
+
+
 @pytest.mark.parametrize(
     "viewport",
     [
@@ -53,18 +64,22 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
 
     btn_lock = page.locator("#btn-lock")
     btn_unlock = page.locator("#btn-unlock")
+    btn_auto = page.locator("#btn-auto")
     btn_info = page.locator("#btn-info")
     btn_camera = page.locator("#btn-camera")
 
     expect(btn_lock).to_be_visible()
     expect(btn_unlock).to_be_visible()
+    expect(btn_auto).to_be_visible()
+    expect(btn_auto).to_be_disabled()
     expect(btn_info).to_be_visible()
     expect(btn_camera).to_be_visible()
 
-    # 2. Click LOCK -> triggers admin_lock(), shows toast, updates status badge
+    # 2. Click LOCK -> triggers admin_lock(), enables Resume Auto, updates status badge
     btn_lock.click()
     expect(page.locator("#toast")).to_contain_text("Door forced LOCKED")
     expect(page.locator("#status-text")).to_have_text("Locked (Admin)")
+    expect(btn_auto).to_be_enabled()
     state.controller.admin_lock.assert_called_once()
 
     # 3. Click INFO -> fetches /health and reveals diagnostics drawer
@@ -88,18 +103,20 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     expect(page.locator("#health-raw")).to_contain_text('"admin_override": "unlocked"')
     state.controller.admin_unlock.assert_called_once()
 
+    # 4b. Click RESUME AUTO -> triggers admin_auto(), clears override, disables button
+    btn_auto.click()
+    expect(page.locator("#toast")).to_contain_text("Automatic prey detection resumed")
+    expect(page.locator("#status-text")).to_have_text("Unlocked")
+    expect(page.locator("#health-raw")).to_contain_text('"admin_override": null')
+    expect(btn_auto).to_be_disabled()
+    state.controller.admin_auto.assert_called_once()
+
     # 5. Hide diagnostics drawer
     page.locator("#btn-close-info").click()
     expect(page.locator("#health-panel")).to_be_hidden()
 
     # 6. Verify footer rendering (includes app version and optional model date)
-    expect(page.locator("#footer-meta")).to_contain_text("v0.0.0 ·")
-    expect(page.locator("#footer-meta")).to_contain_text("© belodetek 2026")
-    repo_link = page.locator("#footer-repo-link")
-    expect(repo_link).to_be_visible()
-    expect(repo_link).to_have_attribute(
-        "href", "https://github.com/belodetek/only-cats"
-    )
+    _assert_footer_rendered(page)
 
 
 def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
@@ -230,6 +247,7 @@ def test_esp32_disconnected_disables_controls_and_highlights_health(
 
     expect(page.locator("#btn-lock")).to_be_disabled()
     expect(page.locator("#btn-unlock")).to_be_disabled()
+    expect(page.locator("#btn-auto")).to_be_disabled()
     expect(page.locator("#status-text")).to_have_text("Disabled (Open)")
     expect(page.locator("#status-badge")).to_have_class(re.compile(r"opacity-75"))
 

@@ -195,3 +195,34 @@ def test_short_prelock_does_not_shorten_active_prey_lockout():
     controller.trigger_lock(15.0, dispense_on_expire=False)
     assert controller.lock_until == long_until
     assert controller.state.pending_dispense is True
+
+
+def test_admin_auto_clears_override_and_restores_prey_trigger(monkeypatch):
+    """Verify admin_auto clears admin_override, unlocks manual hold, and re-enables trigger_lock."""
+    monkeypatch.setattr(esp32.config, "command_interval_sec", 0.01)
+
+    mock_serial_instance = MagicMock()
+    mock_serial_instance.is_open = True
+    mock_serial_instance.in_waiting = 0
+
+    with patch("esp32.serial.Serial", return_value=mock_serial_instance):
+        ctrl = esp32.ESP32SerialController(
+            esp32.config.serial_port, esp32.config.baud_rate
+        )
+        with patch("esp32.time.sleep"):
+            ctrl.connect()
+        ctrl.start_worker()
+
+        ctrl.admin_lock()
+        assert ctrl.admin_override == "locked"
+        assert ctrl.trigger_lock(duration=0.2, dispense_on_expire=False) is False
+
+        ctrl.admin_auto()
+        assert ctrl.admin_override is None
+        assert ctrl.lock_until == 0.0
+        time.sleep(0.05)
+        assert mock_serial_instance.write.call_args_list[-1][0][0] == b"U"
+
+        # Automatic pre-lock / prey triggers now succeed again
+        assert ctrl.trigger_lock(duration=0.2, dispense_on_expire=False) is True
+        ctrl.close()

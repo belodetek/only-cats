@@ -173,6 +173,23 @@ async def reolink_webhook(
     return {"status": "queued", "camera_url": camera_base_url}
 
 
+@router.post("/auto")
+async def resume_auto(
+    request: Request,
+    secret: Optional[str] = Query(None, description="Shared secret via query param"),
+    x_webhook_secret: Optional[str] = Header(
+        None, alias="X-Webhook-Secret", description="Shared secret via header"
+    ),
+) -> dict:
+    """Clear manual lock/unlock override and return to automatic detection mode."""
+    verify_secret(secret, x_webhook_secret)
+    deps: "AppState" = request.app.state.deps
+    if not deps.controller:
+        raise HTTPException(status_code=503, detail="Lock controller not initialized")
+    deps.controller.admin_auto()
+    return {"status": "auto", "admin_override": None}
+
+
 @router.post("/lock")
 async def force_lock(
     request: Request,

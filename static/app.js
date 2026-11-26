@@ -5,6 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	const btnLock = document.getElementById("btn-lock");
 	const btnUnlock = document.getElementById("btn-unlock");
+	const btnAuto = document.getElementById("btn-auto");
+	const autoModeHint = document.getElementById("auto-mode-hint");
 	const btnInfo = document.getElementById("btn-info");
 	const btnCamera = document.getElementById("btn-camera");
 	const btnDispenser = document.getElementById("btn-dispenser");
@@ -155,6 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
 		const styles = {
 			lock: "bg-rose-950/80 border-rose-700 text-rose-200",
 			unlock: "bg-emerald-950/80 border-emerald-700 text-emerald-200",
+			auto: "bg-sky-950/80 border-sky-700 text-sky-200",
 			error: "bg-red-950/90 border-red-700 text-red-200",
 			info: "bg-slate-900 border-slate-700 text-slate-200",
 		};
@@ -163,14 +166,23 @@ document.addEventListener("DOMContentLoaded", () => {
 		toast.classList.remove("hidden");
 	}
 
-	function setLockControlsEnabled(enabled) {
+	function setLockControlsEnabled(enabled, hasOverride = false) {
 		if (btnLock) btnLock.disabled = !enabled;
 		if (btnUnlock) btnUnlock.disabled = !enabled;
+		if (btnAuto) btnAuto.disabled = !(enabled && hasOverride);
+		if (autoModeHint) {
+			autoModeHint.textContent = !enabled
+				? ""
+				: hasOverride
+					? "(Override Active)"
+					: "(Already Auto)";
+		}
 	}
 
 	function updateStatusBadge(health) {
 		const espConnected = Boolean(health.serial_connected);
-		setLockControlsEnabled(espConnected);
+		const hasOverride = Boolean(health.admin_override);
+		setLockControlsEnabled(espConnected, hasOverride);
 
 		if (!statusBadge || !statusDot || !statusText) {
 			return;
@@ -1136,6 +1148,16 @@ document.addEventListener("DOMContentLoaded", () => {
 				"/ui/unlock",
 				"Admin override active: Door forced UNLOCKED.",
 				"unlock",
+			),
+		);
+	}
+
+	if (btnAuto) {
+		btnAuto.addEventListener("click", () =>
+			sendAdminCommand(
+				"/ui/auto",
+				"Admin override cleared: Automatic prey detection resumed.",
+				"auto",
 			),
 		);
 	}

@@ -121,6 +121,16 @@ async def get_ui_config() -> dict[str, str]:
     }
 
 
+@router.post("/ui/auto")
+async def ui_resume_auto(request: Request) -> dict:
+    """Clear persistent admin override and return to automatic mode from the web UI."""
+    deps = request.app.state.deps
+    if not deps or not deps.controller:
+        raise HTTPException(status_code=503, detail="Lock controller not initialized")
+    deps.controller.admin_auto()
+    return {"status": "auto", "admin_override": None}
+
+
 @router.post("/ui/lock")
 async def ui_force_lock(request: Request) -> dict:
     """Trigger persistent admin lockout from the web UI."""
