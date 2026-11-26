@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: UI improvements (notify on backend down)"
+      hash: 1b92b411165183149b689e1c36eba83b3581dba5
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.28
+  title: ""
+  date: 2026-11-26T19:41:24.248Z
+- commits:
     - subject: "patch: Footer on mobile"
       hash: d34a10e30dd56e28718dc22613a751827a88bb63
       body: ""
