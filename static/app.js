@@ -95,7 +95,31 @@ document.addEventListener("DOMContentLoaded", () => {
 		drag: null,
 	};
 
+	const updateBanner = document.getElementById("update-banner");
+	const btnRefreshUi = document.getElementById("btn-refresh-ui");
+	const loadedUiVersion = document.body?.dataset?.uiVersion || "";
+
 	let drawerPollTimer = null;
+
+	function checkUiVersion(serverVersion) {
+		if (
+			!serverVersion ||
+			!loadedUiVersion ||
+			loadedUiVersion === "__ASSET_V__" ||
+			serverVersion === loadedUiVersion
+		) {
+			return;
+		}
+		if (updateBanner) {
+			updateBanner.classList.remove("hidden");
+		}
+	}
+
+	if (btnRefreshUi) {
+		btnRefreshUi.addEventListener("click", () => {
+			window.location.reload();
+		});
+	}
 
 	async function apiFetch(url, options = {}) {
 		const method = (options.method || "GET").toUpperCase();
@@ -223,26 +247,49 @@ document.addEventListener("DOMContentLoaded", () => {
 				// Ignore malformed SSE frames
 			}
 		});
+		es.addEventListener("version", (ev) => {
+			try {
+				const data = JSON.parse(ev.data);
+				checkUiVersion(data.ui_version);
+			} catch (_err) {
+				// Ignore malformed SSE frames
+			}
+		});
 		window.addEventListener("beforeunload", () => es.close(), { once: true });
 	}
 
-	function setLockControlsEnabled(enabled, hasOverride = false) {
-		if (btnLock) btnLock.disabled = !enabled;
-		if (btnUnlock) btnUnlock.disabled = !enabled;
-		if (btnAuto) btnAuto.disabled = !(enabled && hasOverride);
+	function setLockControlsEnabled(
+		enabled,
+		hasOverride = false,
+		isLocked = false,
+	) {
+		const connected = Boolean(enabled);
+		const locked = connected && Boolean(isLocked);
+		const unlocked = connected && !locked;
+		if (btnLock) {
+			btnLock.disabled = !connected || locked;
+		}
+		if (btnUnlock) {
+			btnUnlock.disabled = !connected || unlocked;
+		}
+		if (btnAuto) {
+			btnAuto.disabled = !(connected && hasOverride);
+		}
 		if (autoModeHint) {
-			autoModeHint.textContent = !enabled
+			autoModeHint.textContent = !connected
 				? ""
 				: hasOverride
 					? "(Override Active)"
-					: "(Already Auto)";
+					: "(Auto)";
 		}
 	}
 
 	function updateStatusBadge(health) {
 		const espConnected = Boolean(health.serial_connected);
 		const hasOverride = Boolean(health.admin_override);
-		setLockControlsEnabled(espConnected, hasOverride);
+		const isLocked =
+			Boolean(health.lock_engaged) || health.admin_override === "locked";
+		setLockControlsEnabled(espConnected, hasOverride, isLocked);
 
 		if (!statusBadge || !statusDot || !statusText) {
 			return;
@@ -492,10 +539,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			if (!resp.ok) {
 				return;
 			}
+
 			const cfg = await resp.json();
 			footerState.appVersion = cfg.app_version || "";
 			footerState.repoUrl = cfg.repo_url || "";
 			renderFooterMeta();
+			checkUiVersion(cfg.ui_version);
 			if (cfg.dispenser_url) {
 				btnDispenser.classList.remove("hidden");
 				btnDispenser.addEventListener("click", () => {

@@ -28,6 +28,7 @@ from metrics import METRICS
 
 # pylint: enable=import-error
 
+_SHUTDOWN_EVENT = asyncio.Event()
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 INDEX_HTML = STATIC_DIR / "index.html"
 ERROR_HTML = STATIC_DIR / "error.html"
@@ -40,6 +41,16 @@ _ERROR_COPY = {
 }
 
 router = APIRouter(tags=["web-ui"])
+
+
+def reset_sse_shutdown() -> None:
+    """Clear the SSE shutdown flag on application startup."""
+    _SHUTDOWN_EVENT.clear()
+
+
+def signal_sse_shutdown() -> None:
+    """Wake all active SSE generators so Uvicorn shuts down immediately."""
+    _SHUTDOWN_EVENT.set()
 
 
 def render_error_response(
@@ -101,21 +112,28 @@ async def ui_error_page(request: Request, code: int) -> HTMLResponse:
 
 @router.get("/ui/dataset/events")
 async def ui_dataset_events(request: Request) -> StreamingResponse:
-    """Stream real-time dataset count and new-capture notifications via SSE."""
+    """Stream real-time dataset count, capture, and UI version notifications via SSE."""
     sub = subscribe_dataset_events()
     _, queue = sub
+    initial_version = _compute_asset_version()
 
     async def _event_stream():
+        idle_ticks = 0
         try:
             yield ": connected\n\n"
-            while True:
+            yield f"event: version\ndata: {json.dumps({'ui_version': initial_version})}\n\n"
+            while not _SHUTDOWN_EVENT.is_set():
                 if await request.is_disconnected():
                     break
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    event = await asyncio.wait_for(queue.get(), timeout=1.0)
+                    idle_ticks = 0
                     yield f"event: dataset\ndata: {json.dumps(event)}\n\n"
                 except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"
+                    idle_ticks += 1
+                    if idle_ticks >= 25:
+                        idle_ticks = 0
+                        yield ": keepalive\n\n"
         finally:
             unsubscribe_dataset_events(sub)
 
@@ -152,6 +170,7 @@ async def get_ui_config() -> dict[str, str]:
         "dispenser_url": dispenser_url,
         "app_version": getattr(config, "app_version", "0.0.0"),
         "repo_url": getattr(config, "repo_url", ""),
+        "ui_version": _compute_asset_version(),
     }
 
 

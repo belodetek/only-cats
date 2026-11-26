@@ -40,6 +40,27 @@ def _assert_footer_rendered(page: Page) -> None:
     )
 
 
+def _assert_button_states(
+    page: Page,
+    *,
+    lock: bool,
+    unlock: bool,
+    auto: bool,
+) -> None:
+    """Assert enabled/disabled states for Lock, Unlock, and Resume Auto controls."""
+    for selector, enabled in (
+        ("#btn-lock", lock),
+        ("#btn-unlock", unlock),
+        ("#btn-auto", auto),
+    ):
+        locator = page.locator(selector)
+        expect(locator).to_be_visible()
+        if enabled:
+            expect(locator).to_be_enabled()
+        else:
+            expect(locator).to_be_disabled()
+
+
 @pytest.mark.parametrize(
     "viewport",
     [
@@ -69,18 +90,14 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     btn_info = page.locator("#btn-info")
     btn_camera = page.locator("#btn-camera")
 
-    expect(btn_lock).to_be_visible()
-    expect(btn_unlock).to_be_visible()
-    expect(btn_auto).to_be_visible()
-    expect(btn_auto).to_be_disabled()
-    expect(btn_info).to_be_visible()
     expect(btn_camera).to_be_visible()
+    _assert_button_states(page, lock=True, unlock=False, auto=False)
 
-    # 2. Click LOCK -> triggers admin_lock(), enables Resume Auto, updates status badge
+    # 2. Click LOCK -> disables Lock, enables Unlock & Resume Auto
     btn_lock.click()
     expect(page.locator("#toast")).to_contain_text("Door forced LOCKED")
     expect(page.locator("#status-text")).to_have_text("Locked (Admin)")
-    expect(btn_auto).to_be_enabled()
+    _assert_button_states(page, lock=False, unlock=True, auto=True)
     state.controller.admin_lock.assert_called_once()
 
     # 3. Click INFO -> fetches /health and reveals diagnostics drawer
@@ -97,19 +114,20 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     expect(service_cell).to_have_text("healthy")
     expect(service_cell).to_have_class(re.compile(r"text-emerald-400"))
 
-    # 4. Click UNLOCK -> triggers admin_unlock(), updates badge and open /health drawer
+    # 4. Click UNLOCK -> enables Lock, disables Unlock, updates /health drawer
     btn_unlock.click()
     expect(page.locator("#toast")).to_contain_text("Door forced UNLOCKED")
     expect(page.locator("#status-text")).to_have_text("Unlocked (Admin)")
     expect(page.locator("#health-raw")).to_contain_text('"admin_override": "unlocked"')
+    _assert_button_states(page, lock=True, unlock=False, auto=True)
     state.controller.admin_unlock.assert_called_once()
 
-    # 4b. Click RESUME AUTO -> triggers admin_auto(), clears override, disables button
+    # 4b. Click RESUME AUTO -> keeps Lock enabled, Unlock & Auto disabled
     btn_auto.click()
     expect(page.locator("#toast")).to_contain_text("Automatic prey detection resumed")
     expect(page.locator("#status-text")).to_have_text("Unlocked")
     expect(page.locator("#health-raw")).to_contain_text('"admin_override": null')
-    expect(btn_auto).to_be_disabled()
+    _assert_button_states(page, lock=True, unlock=False, auto=False)
     state.controller.admin_auto.assert_called_once()
 
     # 5. Hide diagnostics drawer
@@ -146,7 +164,7 @@ def test_camera_button_navigates_to_cctv1(page: Page, live_ui_server):
 def test_traefik_routes_ui_and_camera_end_to_end(
     browser, traefik_ui_server, target_key
 ):
-    """Verify Traefik routes /, /ui/lock, /ui/unlock, and /cctv1 on both hostnames."""
+    """Verify Traefik routes /, /ui/lock, /ui/unlock, /ui/auto, and /cctv1 on both hostnames."""
     base_url = traefik_ui_server[target_key]
     state = traefik_ui_server["state"]
 
@@ -160,14 +178,26 @@ def test_traefik_routes_ui_and_camera_end_to_end(
     _assert_security_headers(resp.headers)
     expect(page.get_by_role("heading", name="onlyCat(s)")).to_be_visible()
 
-    # 2. Lock & Unlock buttons traverse Traefik -> oauth2-auth -> FastAPI
-    page.locator("#btn-lock").click()
+    btn_lock = page.locator("#btn-lock")
+    btn_unlock = page.locator("#btn-unlock")
+    btn_auto = page.locator("#btn-auto")
+    _assert_button_states(page, lock=True, unlock=False, auto=False)
+
+    # 2. Lock, Unlock & Resume Auto buttons traverse Traefik -> oauth2-auth -> FastAPI
+    btn_lock.click()
     expect(page.locator("#status-text")).to_have_text("Locked (Admin)")
+    _assert_button_states(page, lock=False, unlock=True, auto=True)
     state.controller.admin_lock.assert_called_once()
 
-    page.locator("#btn-unlock").click()
+    btn_unlock.click()
     expect(page.locator("#status-text")).to_have_text("Unlocked (Admin)")
+    _assert_button_states(page, lock=True, unlock=False, auto=True)
     state.controller.admin_unlock.assert_called_once()
+
+    btn_auto.click()
+    expect(page.locator("#status-text")).to_have_text("Unlocked")
+    _assert_button_states(page, lock=True, unlock=False, auto=False)
+    state.controller.admin_auto.assert_called_once()
 
     # 3. Camera button redirects /cctv1 -> /cctv1/ -> StripPrefix -> mock-camera
     page.locator("#btn-camera").click()
@@ -246,9 +276,7 @@ def test_esp32_disconnected_disables_controls_and_highlights_health(
 
     page.goto(f"{base_url}/", wait_until="networkidle")
 
-    expect(page.locator("#btn-lock")).to_be_disabled()
-    expect(page.locator("#btn-unlock")).to_be_disabled()
-    expect(page.locator("#btn-auto")).to_be_disabled()
+    _assert_button_states(page, lock=False, unlock=False, auto=False)
     expect(page.locator("#status-text")).to_have_text("Disabled (Open)")
     expect(page.locator("#status-badge")).to_have_class(re.compile(r"opacity-75"))
 
@@ -720,3 +748,23 @@ def test_dataset_count_and_grid_auto_refresh_via_sse(
         "New training capture saved (ANIMAL)"
     )
     expect(page.locator("#dataset-grid [data-ds-idx='0']")).to_be_visible()
+
+
+def test_ui_shows_update_banner_when_server_ui_version_changes(
+    page: Page, live_ui_server
+):
+    """Verify a mismatch between loaded asset hash and server ui_version reveals #update-banner."""
+    base_url, _ = live_ui_server
+    stub_external_cdns(page, base_url)
+    page.route(
+        f"{base_url}/ui/config",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"dispenser_url":"","app_version":"0.0.0","repo_url":"","ui_version":"deadbeef"}',
+        ),
+    )
+
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    expect(page.locator("#update-banner")).to_be_visible()
+    expect(page.locator("#btn-refresh-ui")).to_be_visible()

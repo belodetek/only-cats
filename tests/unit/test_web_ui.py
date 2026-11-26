@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 import config
 import dataset
 import only_cats
+import web_ui
 from tests.conftest import assert_admin_lock_unlock_flow, bind_admin_override_mock
 
 
@@ -31,7 +32,7 @@ def _make_ui_state() -> only_cats.AppState:
 def test_ui_dataset_events_streams_sse_on_capture(
     live_ui_server, tmp_data_dirs, sample_jpeg_bytes
 ):
-    """GET /ui/dataset/events must stream an 'event: dataset' SSE frame when a capture is saved."""
+    """GET /ui/dataset/events must stream initial version and 'event: dataset' SSE frames."""
     base_url, _ = live_ui_server
     _ = tmp_data_dirs
 
@@ -51,11 +52,15 @@ def test_ui_dataset_events_streams_sse_on_capture(
                 continue
             if line and not line.startswith(":"):
                 lines.append(line)
-            if line.startswith("data: "):
+            if len(lines) >= 4:
                 break
 
-    assert lines[0] == "event: dataset"
-    payload = json.loads(lines[1].removeprefix("data: "))
+    assert lines[0] == "event: version"
+    version_payload = json.loads(lines[1].removeprefix("data: "))
+    assert len(version_payload["ui_version"]) == 8
+
+    assert lines[2] == "event: dataset"
+    payload = json.loads(lines[3].removeprefix("data: "))
     assert payload["action"] == "created"
     assert payload["counts"]["all"] == 1
 
@@ -66,6 +71,7 @@ def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
 
     parsed = urlsplit(config.dispenser_url)
     expected_root = f"{parsed.scheme}://{parsed.netloc}/"
+    expected_ui_v = web_ui._compute_asset_version()  # pylint: disable=protected-access
 
     resp_default = client.get("/ui/config")
     assert resp_default.status_code == 200
@@ -73,6 +79,7 @@ def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
         "dispenser_url": expected_root,
         "app_version": "0.0.0",
         "repo_url": "https://github.com/belodetek/only-cats",
+        "ui_version": expected_ui_v,
     }
 
     monkeypatch.setattr(config, "dispenser_url", "")
@@ -84,6 +91,7 @@ def test_ui_config_returns_dispenser_url_and_version(monkeypatch):
         "dispenser_url": "",
         "app_version": "1.2.3",
         "repo_url": "",
+        "ui_version": expected_ui_v,
     }
 
 

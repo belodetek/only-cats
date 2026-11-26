@@ -322,7 +322,7 @@ def live_ui_server():
         port=port,
         log_level="error",
         lifespan="off",
-        timeout_graceful_shutdown=0.5,
+        timeout_graceful_shutdown=1,
     )
     server = uvicorn.Server(config_uv)
     server.install_signal_handlers = lambda: None
@@ -366,7 +366,7 @@ def _session_traefik_uvicorn():
         port=8000,
         log_level="error",
         lifespan="off",
-        timeout_graceful_shutdown=0.5,
+        timeout_graceful_shutdown=1,
     )
     server = uvicorn.Server(config_uv)
     server.install_signal_handlers = lambda: None
