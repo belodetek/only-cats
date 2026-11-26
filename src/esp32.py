@@ -144,6 +144,18 @@ class ESP32SerialController:
         with self.lock:
             return self._write_locked(b"P")
 
+    def admin_auto(self) -> None:
+        """Clear manual admin override and return to automatic YOLO prey lockout mode."""
+        with self.lock:
+            was_locked = self.state.admin_override == "locked"
+            self.state.admin_override = None
+            self.state.until = 0.0
+            self.state.pending_dispense = False
+            self.state.on_expired = None
+            if was_locked:
+                self._write_locked(b"U")
+        logger.info("Admin override cleared: returned to automatic mode.")
+
     def admin_lock(self) -> None:
         """Force the lock closed persistently until /unlock or power cycle."""
         with self.lock:

@@ -226,7 +226,8 @@ def make_yolo_result(detections: list[tuple[int, float, list[float]]]):
 
 
 def bind_admin_override_mock(controller) -> None:
-    """Wire mock controller admin_lock/admin_unlock side effects to update admin_override."""
+    """Wire mock controller admin_lock/admin_unlock/admin_auto side effects
+    to update admin_override."""
     controller.admin_override = None
 
     def _set_locked() -> None:
@@ -235,8 +236,12 @@ def bind_admin_override_mock(controller) -> None:
     def _set_unlocked() -> None:
         controller.admin_override = "unlocked"
 
+    def _set_auto() -> None:
+        controller.admin_override = None
+
     controller.admin_lock.side_effect = _set_locked
     controller.admin_unlock.side_effect = _set_unlocked
+    controller.admin_auto.side_effect = _set_auto
 
 
 def _with_ui_csrf_header(url: str, kwargs: dict | None) -> dict:
@@ -257,8 +262,10 @@ def assert_admin_lock_unlock_flow(
     unlock_url: str,
     lock_kwargs: dict | None = None,
     unlock_kwargs: dict | None = None,
+    auto_url: str | None = None,
+    auto_kwargs: dict | None = None,
 ) -> None:
-    """Assert POST lock/unlock endpoints update controller state and /health metrics."""
+    """Assert POST lock/unlock/auto endpoints update controller state and /health metrics."""
     lock_resp = client.post(lock_url, **_with_ui_csrf_header(lock_url, lock_kwargs))
     assert lock_resp.status_code == 200
     assert lock_resp.json() == {"status": "locked", "admin_override": "locked"}
@@ -278,6 +285,16 @@ def assert_admin_lock_unlock_flow(
     health_unlocked = client.get("/health").json()
     assert health_unlocked["lock_engaged"] is False
     assert health_unlocked["admin_override"] == "unlocked"
+
+    if auto_url is not None:
+        auto_resp = client.post(auto_url, **_with_ui_csrf_header(auto_url, auto_kwargs))
+        assert auto_resp.status_code == 200
+        assert auto_resp.json() == {"status": "auto", "admin_override": None}
+        controller.admin_auto.assert_called_once()
+
+        health_auto = client.get("/health").json()
+        assert health_auto["lock_engaged"] is False
+        assert health_auto["admin_override"] is None
 
 
 @pytest.fixture

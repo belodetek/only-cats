@@ -86,7 +86,7 @@
 					<span class="text-xs font-normal text-rose-100/80">Force Closed</span>
 				</button>
 
-				<!-- 2. UNLOCK -->
+                <!-- 2. UNLOCK -->
 				<button
 					id="btn-unlock"
 					type="button"
@@ -96,6 +96,22 @@
 					<span class="text-base sm:text-lg">Unlock</span>
 					<span class="text-xs font-normal text-emerald-100/80"
 						>Force Open</span
+					>
+				</button>
+
+				<!-- 2b. AUTO / RESUME -->
+				<button
+					id="btn-auto"
+					type="button"
+					disabled
+					class="col-span-2 action-btn flex items-center justify-center gap-3 min-h-[64px] rounded-2xl bg-sky-600/90 hover:bg-sky-600 text-white font-semibold shadow-lg shadow-sky-950/50 border border-sky-400/40 px-4 py-3 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+				>
+					<i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+					<span class="text-sm sm:text-base">Resume Auto</span>
+					<span
+						id="auto-mode-hint"
+						class="text-xs font-normal text-sky-100/80"
+						>(Active)</span
 					>
 				</button>
 

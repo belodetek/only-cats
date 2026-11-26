@@ -70,6 +70,7 @@ def test_ui_root_serves_html_and_static_assets():
     assert 'id="btn-purge-dataset"' in resp.text
     assert 'id="purge-modal"' in resp.text
     assert 'id="purge-confirm-input"' in resp.text
+    assert 'id="btn-auto"' in resp.text
 
     # Versioned static asset gets immutable Cache-Control + gzip compression
     js_resp = client.get(
@@ -87,7 +88,7 @@ def test_ui_root_serves_html_and_static_assets():
 
 
 def test_ui_lock_and_unlock_endpoints():
-    """Verify POST /ui/lock and /ui/unlock toggle persistent admin override."""
+    """Verify POST /ui/lock, /ui/unlock, and /ui/auto toggle persistent admin override."""
     state = _make_ui_state()
     bind_admin_override_mock(state.controller)
     only_cats.app.state.deps = state
@@ -98,6 +99,7 @@ def test_ui_lock_and_unlock_endpoints():
         controller=state.controller,
         lock_url="/ui/lock",
         unlock_url="/ui/unlock",
+        auto_url="/ui/auto",
     )
 
 
