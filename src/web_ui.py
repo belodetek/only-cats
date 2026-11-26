@@ -101,13 +101,15 @@ async def ui_error_page(request: Request, code: int) -> HTMLResponse:
 
 @router.get("/ui/dataset/events")
 async def ui_dataset_events(request: Request) -> StreamingResponse:
-    """Stream real-time dataset count and new-capture notifications via SSE."""
+    """Stream real-time dataset count, capture, and UI version notifications via SSE."""
     sub = subscribe_dataset_events()
     _, queue = sub
+    initial_version = _compute_asset_version()
 
     async def _event_stream():
         try:
             yield ": connected\n\n"
+            yield f"event: version\ndata: {json.dumps({'ui_version': initial_version})}\n\n"
             while True:
                 if await request.is_disconnected():
                     break
@@ -152,6 +154,7 @@ async def get_ui_config() -> dict[str, str]:
         "dispenser_url": dispenser_url,
         "app_version": getattr(config, "app_version", "0.0.0"),
         "repo_url": getattr(config, "repo_url", ""),
+        "ui_version": _compute_asset_version(),
     }
 
 

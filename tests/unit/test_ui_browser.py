@@ -720,3 +720,27 @@ def test_dataset_count_and_grid_auto_refresh_via_sse(
         "New training capture saved (ANIMAL)"
     )
     expect(page.locator("#dataset-grid [data-ds-idx='0']")).to_be_visible()
+
+
+def test_ui_shows_update_banner_when_server_ui_version_changes(
+    page: Page, live_ui_server
+):
+    """Verify a mismatch between loaded asset hash and server ui_version reveals #update-banner."""
+    base_url, _ = live_ui_server
+    stub_external_cdns(page, base_url)
+
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    expect(page.locator("#update-banner")).to_be_hidden()
+
+    # Simulate backend redeploy returning a new ui_version on /ui/config
+    page.route(
+        f"{base_url}/ui/config",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"dispenser_url":"","app_version":"0.0.0","repo_url":"","ui_version":"deadbeef"}',
+        ),
+    )
+    page.reload(wait_until="domcontentloaded")
+    expect(page.locator("#update-banner")).to_be_visible()
+    expect(page.locator("#btn-refresh-ui")).to_be_visible()

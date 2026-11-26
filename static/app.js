@@ -95,7 +95,31 @@ document.addEventListener("DOMContentLoaded", () => {
 		drag: null,
 	};
 
+	const updateBanner = document.getElementById("update-banner");
+	const btnRefreshUi = document.getElementById("btn-refresh-ui");
+	const loadedUiVersion = document.body?.dataset?.uiVersion || "";
+
 	let drawerPollTimer = null;
+
+	function checkUiVersion(serverVersion) {
+		if (
+			!serverVersion ||
+			!loadedUiVersion ||
+			loadedUiVersion === "__ASSET_V__" ||
+			serverVersion === loadedUiVersion
+		) {
+			return;
+		}
+		if (updateBanner) {
+			updateBanner.classList.remove("hidden");
+		}
+	}
+
+	if (btnRefreshUi) {
+		btnRefreshUi.addEventListener("click", () => {
+			window.location.reload();
+		});
+	}
 
 	async function apiFetch(url, options = {}) {
 		const method = (options.method || "GET").toUpperCase();
@@ -219,6 +243,14 @@ document.addEventListener("DOMContentLoaded", () => {
 				if (panelOpen && triageClosed) {
 					loadDataset(false);
 				}
+			} catch (_err) {
+				// Ignore malformed SSE frames
+			}
+		});
+		es.addEventListener("version", (ev) => {
+			try {
+				const data = JSON.parse(ev.data);
+				checkUiVersion(data.ui_version);
 			} catch (_err) {
 				// Ignore malformed SSE frames
 			}

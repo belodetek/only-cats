@@ -12,6 +12,7 @@
 		<link rel="stylesheet" href="/static/styles.css?v=__ASSET_V__">
 	</head>
 	<body
+		data-ui-version="__ASSET_V__"
 		class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-8"
 	>
         <!-- Header -->
@@ -74,6 +75,26 @@
 
 		<!-- Main 4-Button Control Grid -->
 		<main class="w-full max-w-xl my-auto py-6 flex flex-col gap-6">
+            <!-- New UI Version Available Banner -->
+			<div
+				id="update-banner"
+				role="status"
+				aria-live="polite"
+				class="hidden rounded-xl px-3.5 py-2.5 bg-sky-950/80 border border-sky-700/80 text-sky-100 text-xs flex items-center justify-between gap-3"
+			>
+				<div class="flex items-center gap-2 min-w-0">
+					<i data-lucide="sparkles" class="w-4 h-4 text-sky-400 shrink-0"></i>
+					<span class="truncate">A newer version of the UI is available.</span>
+				</div>
+				<button
+					id="btn-refresh-ui"
+					type="button"
+					class="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold shrink-0 cursor-pointer transition-colors"
+				>
+					Refresh
+				</button>
+			</div>
+
 			<div class="grid grid-cols-2 gap-4 sm:gap-5">
 				<!-- 1. LOCK -->
 				<button
