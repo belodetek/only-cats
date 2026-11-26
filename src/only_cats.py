@@ -56,6 +56,77 @@ _CSP_POLICY = (
     "form-action 'self'"
 )
 
+_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    (b"x-frame-options", b"DENY"),
+    (b"x-content-type-options", b"nosniff"),
+    (b"referrer-policy", b"same-origin"),
+    (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
+    (b"content-security-policy", _CSP_POLICY.encode("latin-1")),
+    (b"strict-transport-security", b"max-age=31536000; includeSubDomains"),
+]
+
+
+class _SecurityAndCsrfMiddleware:  # pylint: disable=too-few-public-methods
+    """Pure ASGI middleware attaching security headers and enforcing CSRF on /ui/* mutations."""
+
+    def __init__(self, app_asgi) -> None:
+        self.app = app_asgi
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        method = scope.get("method", "GET")
+        path = scope.get("path", "")
+        if method in _STATE_CHANGING_METHODS and path.startswith("/ui/"):
+            request = Request(scope, receive=receive)
+            if request.headers.get("sec-fetch-site") == "cross-site":
+                resp = web_ui.render_error_response(
+                    request, 403, "Cross-site request blocked"
+                )
+                await resp(scope, receive, send)
+                return
+
+            origin = request.headers.get("origin")
+            host = request.headers.get("x-forwarded-host") or request.headers.get(
+                "host"
+            )
+            if origin and host and urlsplit(origin).netloc != host:
+                resp = web_ui.render_error_response(request, 403, "Origin mismatch")
+                await resp(scope, receive, send)
+                return
+
+            if request.headers.get("x-requested-with") not in {
+                "XMLHttpRequest",
+                "fetch",
+            }:
+                resp = web_ui.render_error_response(request, 403, "Missing CSRF header")
+                await resp(scope, receive, send)
+                return
+
+        async def _send_with_headers(message):
+            if message["type"] == "http.response.start":
+                raw_headers = list(message.get("headers", []))
+                existing = {k.lower() for k, _ in raw_headers}
+                for key, val in _SECURITY_HEADERS:
+                    if key not in existing:
+                        raw_headers.append((key, val))
+                message = {**message, "headers": raw_headers}
+            await send(message)
+
+        await self.app(scope, receive, _send_with_headers)
+
+
+class _SseSafeGZipMiddleware(GZipMiddleware):
+    """Compress responses except Server-Sent Events streams which must flush immediately."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope.get("path", "").endswith("/events"):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
 
 class VersionedStaticFiles(StaticFiles):
     """Serve /static assets with immutable Cache-Control when ?v= query param is present."""
@@ -143,45 +214,6 @@ async def lifespan(app_instance: FastAPI):
 app = FastAPI(title=config.app_name, lifespan=lifespan)
 
 
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    """Attach anti-clickjacking, CSP, and MIME-sniffing headers to all responses."""
-    response = await call_next(request)
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("Referrer-Policy", "same-origin")
-    response.headers.setdefault(
-        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
-    )
-    response.headers.setdefault("Content-Security-Policy", _CSP_POLICY)
-    response.headers.setdefault(
-        "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-    )
-    return response
-
-
-@app.middleware("http")
-async def csrf_protection_middleware(request: Request, call_next):
-    """Block cross-site state-changing Web UI requests via Origin and custom-header checks."""
-    if request.method in _STATE_CHANGING_METHODS and request.url.path.startswith(
-        "/ui/"
-    ):
-        if request.headers.get("sec-fetch-site") == "cross-site":
-            return web_ui.render_error_response(
-                request, 403, "Cross-site request blocked"
-            )
-
-        origin = request.headers.get("origin")
-        host = request.headers.get("x-forwarded-host") or request.headers.get("host")
-        if origin and host and urlsplit(origin).netloc != host:
-            return web_ui.render_error_response(request, 403, "Origin mismatch")
-
-        if request.headers.get("x-requested-with") not in {"XMLHttpRequest", "fetch"}:
-            return web_ui.render_error_response(request, 403, "Missing CSRF header")
-
-    return await call_next(request)
-
-
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
@@ -205,4 +237,5 @@ app.mount(
 )
 app.include_router(api_routes.router)
 app.include_router(web_ui.router)
-app.add_middleware(GZipMiddleware, minimum_size=512)
+app.add_middleware(_SecurityAndCsrfMiddleware)
+app.add_middleware(_SseSafeGZipMiddleware, minimum_size=512)

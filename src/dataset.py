@@ -1,5 +1,6 @@
 """Dataset inspection, metadata stripping, metadata storage, label editing, and zip export."""
 
+import asyncio
 import io
 import json
 import logging
@@ -19,6 +20,9 @@ from pydantic import BaseModel, Field
 # pylint: enable=import-error
 import config
 
+_DATASET_SUBSCRIBERS: set[
+    tuple[asyncio.AbstractEventLoop, asyncio.Queue[dict[str, Any]]]
+] = set()
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
 THUMB_MAX_WIDTH = 360
 _ZIP_CHUNK_SIZE = 64 * 1024
@@ -46,6 +50,51 @@ class LabelUpdatePayload(BaseModel):  # pylint: disable=too-few-public-methods
     """Request payload for updating YOLO labels on a captured training image."""
 
     boxes: list[YoloBox]
+
+
+def dataset_subscriber_count() -> int:
+    """Return the number of active SSE dataset subscribers."""
+    return len(_DATASET_SUBSCRIBERS)
+
+
+def subscribe_dataset_events() -> (
+    tuple[asyncio.AbstractEventLoop, asyncio.Queue[dict[str, Any]]]
+):
+    """Register an (event_loop, queue) pair for SSE dataset updates."""
+    sub = (asyncio.get_running_loop(), asyncio.Queue(maxsize=32))
+    _DATASET_SUBSCRIBERS.add(sub)
+    return sub
+
+
+def unsubscribe_dataset_events(
+    sub: tuple[asyncio.AbstractEventLoop, asyncio.Queue[dict[str, Any]]],
+) -> None:
+    """Remove a disconnected SSE subscriber."""
+    _DATASET_SUBSCRIBERS.discard(sub)
+
+
+def publish_dataset_event(
+    action: str,
+    filename: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    """Broadcast updated dataset counts to all SSE clients from any thread."""
+    if not _DATASET_SUBSCRIBERS:
+        return
+    counts = list_dataset_items(filter_mode="all", offset=0, limit=1)["counts"]
+    payload: dict[str, Any] = {"action": action, "counts": counts}
+    if filename:
+        payload["filename"] = filename
+    if meta and meta.get("event_type"):
+        payload["event_type"] = meta["event_type"]
+
+    def _enqueue(q: asyncio.Queue[dict[str, Any]]) -> None:
+        if not q.full():
+            q.put_nowait(payload)
+
+    for loop, queue in list(_DATASET_SUBSCRIBERS):
+        if not loop.is_closed():
+            loop.call_soon_threadsafe(_enqueue, queue)
 
 
 def purge_dataset() -> dict[str, int]:
@@ -84,6 +133,7 @@ def purge_dataset() -> dict[str, int]:
         deleted_labels,
         deleted_meta,
     )
+    publish_dataset_event("purged")
     return {
         "deleted_images": deleted_images,
         "deleted_labels": deleted_labels,
@@ -194,6 +244,7 @@ def save_clean_capture(
 
     clean_bytes = strip_image_metadata(raw_image_bytes, quality=quality)
     _atomic_write_bytes(img_path, clean_bytes)
+    publish_dataset_event("created", filename=img_path.name, meta=meta)
 
     return img_path
 
@@ -331,6 +382,7 @@ def delete_dataset_item(filename: str) -> None:
     img_path.unlink(missing_ok=True)
     label_path.unlink(missing_ok=True)
     meta_path.unlink(missing_ok=True)
+    publish_dataset_event("deleted", filename=filename)
 
 
 def iter_dataset_zip() -> Iterator[bytes]:

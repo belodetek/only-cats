@@ -2,6 +2,7 @@
 """End-to-end browser tests for the Web UI using Playwright (Chromium)."""
 
 import re
+import time
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -48,7 +49,7 @@ def _assert_footer_rendered(page: Page) -> None:
     ids=["desktop", "mobile"],
 )
 def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, viewport):
-    """Verify UI renders across desktop/mobile viewports and all 4 buttons function."""
+    """Verify UI renders across desktop/mobile viewports and all control buttons function."""
     base_url, state = live_ui_server
     page.set_viewport_size(viewport)
     stub_external_cdns(page, base_url)
@@ -57,7 +58,7 @@ def test_ui_renders_and_buttons_work_in_browser(page: Page, live_ui_server, view
     assert resp is not None
     _assert_security_headers(resp.headers)
 
-    # 1. Verify header, logo, initial badge, and all 4 buttons are visible
+    # 1. Verify header, logo, initial badge, and control buttons are visible
     expect(page.get_by_role("heading", name="onlyCat(s)")).to_be_visible()
     expect(page.locator("img[src='/static/logo.png']")).to_be_visible()
     expect(page.locator("#status-text")).to_have_text("Unlocked")
@@ -237,7 +238,7 @@ def test_dispenser_button_visibility_and_redirect(page, live_ui_server, monkeypa
 def test_esp32_disconnected_disables_controls_and_highlights_health(
     page: Page, live_ui_server
 ):
-    """Verify disconnected ESP32 disables lock/unlock buttons, dims open badge,
+    """Verify disconnected ESP32 disables lock/unlock/auto buttons, dims open badge,
     and yellows health."""
     base_url, state = live_ui_server
     state.controller.is_connected = False
@@ -679,3 +680,43 @@ def test_dataset_purge_modal_requires_delete_confirmation_in_browser(
     expect(page.locator("#toast")).to_contain_text("Purged 1 images")
     assert not list(images_dir.iterdir())
     assert not list(labels_dir.iterdir())
+
+
+def test_dataset_count_and_grid_auto_refresh_via_sse(
+    page: Page, live_ui_server, tmp_data_dirs, sample_jpeg_bytes
+):
+    """Verify new captures update the badge, show a toast, and refresh an open grid via SSE."""
+    base_url, _ = live_ui_server
+    _ = tmp_data_dirs
+
+    stub_external_cdns(page, base_url)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+
+    # Wait until the browser's EventSource has subscribed on the backend
+    deadline = time.monotonic() + 5.0
+    while dataset.dataset_subscriber_count() == 0 and time.monotonic() < deadline:
+        page.wait_for_timeout(20)
+    assert (
+        dataset.dataset_subscriber_count() > 0
+    ), "EventSource did not subscribe within 5s"
+
+    expect(page.locator("#dataset-count-badge")).to_have_text("0")
+
+    # Open the dataset drawer before a capture arrives to verify live grid refresh
+    page.locator("#btn-dataset").click()
+    expect(page.locator("#dataset-panel")).to_be_visible()
+    expect(page.locator("#dataset-grid")).to_contain_text("No captures in this filter.")
+
+    # Simulate evaluator saving a new training capture on the backend
+    dataset.save_clean_capture(
+        stem="train_20261125_211000_live",
+        raw_image_bytes=sample_jpeg_bytes,
+        boxes=[dataset.YoloBox(cls=0, x=0.5, y=0.5, w=0.25, h=0.25)],
+        meta={"event_type": "ANIMAL"},
+    )
+
+    expect(page.locator("#dataset-count-badge")).to_have_text("1")
+    expect(page.locator("#toast")).to_contain_text(
+        "New training capture saved (ANIMAL)"
+    )
+    expect(page.locator("#dataset-grid [data-ds-idx='0']")).to_be_visible()
