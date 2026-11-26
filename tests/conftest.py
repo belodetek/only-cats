@@ -57,6 +57,9 @@ _BASE_CONFIG_OVERRIDES: dict[str, object] = {
     "conf_threshold": 0.55,
     "target_classes": {"prey"},
     "lockout_duration_sec": 5.0,
+    "enable_animal_prelock": True,
+    "animal_prelock_duration_sec": 1.0,
+    "animal_prelock_cooldown_sec": 4.0,
     "command_interval_sec": 0.05,
     "dispenser_url": "https://dispenser.local.test/",
     "dispenser_user": "admin",
@@ -87,6 +90,7 @@ _HIL_CONFIG_OVERRIDES: dict[str, object] = {
     "serial_port": config.serial_port,
     "serial_reconnect_base_delay_sec": config.serial_reconnect_base_delay_sec,
     "serial_reconnect_max_delay_sec": config.serial_reconnect_max_delay_sec,
+    "enable_animal_prelock": config.enable_animal_prelock,
 }
 
 

@@ -168,6 +168,7 @@ services:
       SERIAL_PORT: /run/vserial/ttyACM0
       SERIAL_RECONNECT_BASE_DELAY_SEC: 0.2
       SERIAL_RECONNECT_MAX_DELAY_SEC: 1.0
+      ENABLE_ANIMAL_PRELOCK: "false"
       WEBHOOK_SECRET: another-secret
       MIN_BLUR_VARIANCE: "0"
     volumes:

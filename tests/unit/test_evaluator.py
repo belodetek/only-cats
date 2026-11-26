@@ -248,8 +248,6 @@ async def test_fetch_and_evaluate_throttles_concurrent_bursts(sample_jpeg_bytes)
         active -= 1
         return MagicMock(), []
 
-    evaluator._eval_semaphore = None  # pylint: disable=protected-access
-    evaluator._pending_evaluations = 0  # pylint: disable=protected-access
     with patch("evaluator.run_inference", side_effect=_slow_inference):
         await asyncio.gather(
             *(
@@ -275,6 +273,7 @@ def _make_blurry_jpeg_bytes() -> bytes:
     return buf.tobytes()
 
 
+@pytest.mark.asyncio
 async def test_blurry_prey_frame_locks_door_without_persisting_dataset_pair(
     tmp_data_dirs, monkeypatch
 ):
@@ -326,6 +325,7 @@ async def test_blurry_prey_frame_locks_door_without_persisting_dataset_pair(
     assert not list(labels_dir.iterdir())
 
 
+@pytest.mark.asyncio
 async def test_blurry_training_frame_is_not_persisted(tmp_data_dirs, monkeypatch):
     """When IN_TRAINING is enabled, blurry non-prey frames must also be skipped."""
     images_dir, labels_dir = tmp_data_dirs
@@ -367,3 +367,75 @@ async def test_blurry_training_frame_is_not_persisted(tmp_data_dirs, monkeypatch
     controller.trigger_lock.assert_not_called()
     assert not list(images_dir.iterdir())
     assert not list(labels_dir.iterdir())
+
+
+@pytest.mark.asyncio
+async def test_benign_prelock_arms_cooldown_and_non_prelock_does_not(
+    monkeypatch, sample_jpeg_bytes
+):
+    """Benign evaluation with prelock_engaged=True arms cooldown; prelock_engaged=False does not."""
+    monkeypatch.setattr(config, "animal_prelock_cooldown_sec", 0.05)
+    monkeypatch.setattr(config, "in_training", False)
+    monkeypatch.setattr(
+        evaluator,
+        "run_inference",
+        lambda *_a: (np.zeros((64, 64, 3)), [make_yolo_result([])]),
+    )
+
+    state = _make_state(sample_jpeg_bytes=sample_jpeg_bytes)
+
+    # 1. prelock_engaged=False -> benign evaluation does not arm cooldown
+    await evaluator.fetch_and_evaluate(
+        state,
+        "http://192.168.10.108",
+        webhook_event={"alarm_type": "ANIMAL"},
+        prelock_engaged=False,
+    )
+    state.controller.trigger_lock.assert_not_called()
+    assert state.prelock_cooldown_until == 0.0
+
+    # 2. prelock_engaged=True -> benign evaluation arms 0.05s cooldown
+    await evaluator.fetch_and_evaluate(
+        state,
+        "http://192.168.10.108",
+        webhook_event={"alarm_type": "ANIMAL"},
+        prelock_engaged=True,
+    )
+    state.controller.trigger_lock.assert_not_called()
+    assert state.prelock_cooldown_until > time.monotonic()
+
+    # 3. Cooldown expires cleanly after 0.06s
+    await asyncio.sleep(0.06)
+    assert time.monotonic() >= state.prelock_cooldown_until
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("tmp_data_dirs")
+async def test_prey_detection_locks_immediately_even_during_prelock_cooldown(
+    monkeypatch, sample_jpeg_bytes
+):
+    """Confirmed prey triggers full lockout and clears cooldown even while cooldown is active."""
+    monkeypatch.setattr(config, "animal_prelock_duration_sec", 0.1)
+    monkeypatch.setattr(config, "animal_prelock_cooldown_sec", 1.0)
+    monkeypatch.setattr(config, "lockout_duration_sec", 5.0)
+    monkeypatch.setattr(
+        evaluator,
+        "run_inference",
+        lambda *_a: (
+            np.zeros((64, 64, 3)),
+            [make_yolo_result([(0, 0.92, [0.5, 0.5, 0.2, 0.2])])],
+        ),
+    )
+
+    state = _make_state(sample_jpeg_bytes=sample_jpeg_bytes)
+    state.prelock_cooldown_until = time.monotonic() + 1.0
+
+    await evaluator.fetch_and_evaluate(
+        state,
+        "http://192.168.10.108",
+        webhook_event={"alarm_type": "ANIMAL"},
+        prelock_engaged=False,
+    )
+
+    state.controller.trigger_lock.assert_called_once_with(5.0)
+    assert state.prelock_cooldown_until == 0.0

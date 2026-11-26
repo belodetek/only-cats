@@ -424,3 +424,32 @@ def test_model_metadata_endpoint_and_health_inclusion(tmp_path, monkeypatch):
     assert health_resp.status_code == 200
     assert health_resp.json()["model_metadata"]["version"] == "8.4.218"
     assert health_resp.json()["model_metadata"]["short_date"] == "2026-11-25"
+
+
+def test_animal_webhook_skips_prelock_when_feature_flag_disabled(
+    monkeypatch, sample_jpeg_bytes
+):
+    """When enable_animal_prelock=False, ANIMAL webhooks skip pre-lock and only lock on prey."""
+    monkeypatch.setattr(config, "enable_animal_prelock", False)
+    monkeypatch.setattr(config, "animal_prelock_duration_sec", 15.0)
+    monkeypatch.setattr(config, "lockout_duration_sec", 300.0)
+    monkeypatch.setattr(
+        evaluator,
+        "run_inference",
+        lambda *_a: (MagicMock(), [make_yolo_result([])]),
+    )
+
+    state = _make_state()
+    state.http_client.get.return_value = MagicMock(
+        status_code=200, content=sample_jpeg_bytes
+    )
+    only_cats.app.state.deps = state
+
+    client = TestClient(only_cats.app, client=("192.168.10.108", 50000))
+    resp = client.post(
+        "/webhook/reolink",
+        params={"secret": config.webhook_secret},
+        json={"alarm": {"type": "ANIMAL"}},
+    )
+    assert resp.status_code == 200
+    state.controller.trigger_lock.assert_not_called()

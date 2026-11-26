@@ -87,6 +87,20 @@ def _persist_clean_pair(
     return str(img_path), str(label_path)
 
 
+def _arm_prelock_cooldown(state: AppState) -> None:
+    """Start cooldown window so stationary animals do not chatter the pre-lock."""
+    cooldown_sec = float(getattr(config, "animal_prelock_cooldown_sec", 0.0))
+    if cooldown_sec <= 0.0:
+        return
+    new_until = time.monotonic() + cooldown_sec
+    if new_until > float(getattr(state, "prelock_cooldown_until", 0.0)):
+        state.prelock_cooldown_until = new_until
+        logger.info(
+            "No prey confirmed; armed ANIMAL pre-lock cooldown for %.1fs.",
+            cooldown_sec,
+        )
+
+
 async def _handle_prey_match(
     state: AppState,
     raw_bytes: bytes,
@@ -100,6 +114,7 @@ async def _handle_prey_match(
 ) -> None:
     """Trigger the door lock and dispatch persistence + Signal notification."""
     assert state.controller is not None
+    state.prelock_cooldown_until = 0.0
     lock_engaged = state.controller.trigger_lock(config.lockout_duration_sec)
     event_label = "TEST EVENT" if is_test else "PREY DETECTED"
     if lock_engaged:
@@ -146,6 +161,7 @@ async def _run_evaluation_pipeline(
     state: AppState,
     camera_base_url: str,
     webhook_event: Optional[dict[str, Any]],
+    prelock_engaged: bool = False,
 ) -> None:
     """Execute snapshot fetch, YOLO inference, and lockout/notification handling."""
     snap_url = (
@@ -154,6 +170,7 @@ async def _run_evaluation_pipeline(
         f"user={config.camera_user}&"
         f"password={config.camera_password}"
     )
+    prey_confirmed = False
 
     try:
         t0 = time.perf_counter()
@@ -201,6 +218,7 @@ async def _run_evaluation_pipeline(
             )
 
         if is_test or any(name in config.target_classes for name in detected_classes):
+            prey_confirmed = True
             await _handle_prey_match(
                 state,
                 raw_bytes,
@@ -235,12 +253,16 @@ async def _run_evaluation_pipeline(
         logger.error(
             "Unexpected error during evaluation pipeline: %s", exc, exc_info=True
         )
+    finally:
+        if prelock_engaged and not prey_confirmed:
+            _arm_prelock_cooldown(state)
 
 
 async def fetch_and_evaluate(
     state: AppState,
     camera_base_url: str,
     webhook_event: Optional[dict[str, Any]] = None,
+    prelock_engaged: bool = False,
 ) -> None:
     """Retrieve snapshot from Reolink camera, run YOLO, and handle lock state."""
     if not state.model or not state.http_client or not state.controller:
@@ -270,7 +292,12 @@ async def fetch_and_evaluate(
     try:
         async with state.eval_semaphore:
             state.pending_evaluations -= 1
-            await _run_evaluation_pipeline(state, camera_base_url, webhook_event)
+            await _run_evaluation_pipeline(
+                state,
+                camera_base_url,
+                webhook_event,
+                prelock_engaged=prelock_engaged,
+            )
     except BaseException:
         if state.pending_evaluations > 0:
             state.pending_evaluations -= 1
