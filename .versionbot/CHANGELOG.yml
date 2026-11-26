@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Refresh training images (SSE)"
+      hash: 4fd030e38dbc8c405af6df01559b3b424f8f2abf
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.26
+  title: ""
+  date: 2026-11-26T17:13:28.585Z
+- commits:
     - subject: "patch: Return to auto lock mode"
       hash: eceeb4fe572196d71cdb31f344e002a89a42a965
       body: ""
