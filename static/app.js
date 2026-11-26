@@ -258,23 +258,38 @@ document.addEventListener("DOMContentLoaded", () => {
 		window.addEventListener("beforeunload", () => es.close(), { once: true });
 	}
 
-	function setLockControlsEnabled(enabled, hasOverride = false) {
-		if (btnLock) btnLock.disabled = !enabled;
-		if (btnUnlock) btnUnlock.disabled = !enabled;
-		if (btnAuto) btnAuto.disabled = !(enabled && hasOverride);
+	function setLockControlsEnabled(
+		enabled,
+		hasOverride = false,
+		isLocked = false,
+	) {
+		const connected = Boolean(enabled);
+		const locked = connected && Boolean(isLocked);
+		const unlocked = connected && !locked;
+		if (btnLock) {
+			btnLock.disabled = !connected || locked;
+		}
+		if (btnUnlock) {
+			btnUnlock.disabled = !connected || unlocked;
+		}
+		if (btnAuto) {
+			btnAuto.disabled = !(connected && hasOverride);
+		}
 		if (autoModeHint) {
-			autoModeHint.textContent = !enabled
+			autoModeHint.textContent = !connected
 				? ""
 				: hasOverride
 					? "(Override Active)"
-					: "(Already Auto)";
+					: "(Auto)";
 		}
 	}
 
 	function updateStatusBadge(health) {
 		const espConnected = Boolean(health.serial_connected);
 		const hasOverride = Boolean(health.admin_override);
-		setLockControlsEnabled(espConnected, hasOverride);
+		const isLocked =
+			Boolean(health.lock_engaged) || health.admin_override === "locked";
+		setLockControlsEnabled(espConnected, hasOverride, isLocked);
 
 		if (!statusBadge || !statusDot || !statusText) {
 			return;
@@ -524,10 +539,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			if (!resp.ok) {
 				return;
 			}
+
 			const cfg = await resp.json();
 			footerState.appVersion = cfg.app_version || "";
 			footerState.repoUrl = cfg.repo_url || "";
 			renderFooterMeta();
+			checkUiVersion(cfg.ui_version);
 			if (cfg.dispenser_url) {
 				btnDispenser.classList.remove("hidden");
 				btnDispenser.addEventListener("click", () => {

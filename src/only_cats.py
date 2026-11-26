@@ -200,7 +200,11 @@ async def lifespan(app_instance: FastAPI):
     )
     app_instance.state.deps = state
 
+    web_ui.reset_sse_shutdown()
+
     yield
+
+    web_ui.signal_sse_shutdown()
 
     if state.controller:
         state.controller.close()
