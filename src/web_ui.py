@@ -121,6 +121,7 @@ async def ui_dataset_events(request: Request) -> StreamingResponse:
         idle_ticks = 0
         try:
             yield ": connected\n\n"
+            yield f": {' ' * 2048}\n\n"
             yield f"event: version\ndata: {json.dumps({'ui_version': initial_version})}\n\n"
             while not _SHUTDOWN_EVENT.is_set():
                 if await request.is_disconnected():
