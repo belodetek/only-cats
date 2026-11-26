@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Pre-lock cool down"
+      hash: 803340f2b5c7000d582f5bd4adbbdce36602d4b1
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.24
+  title: ""
+  date: 2026-11-26T00:12:02.042Z
+- commits:
     - subject: "patch: Model version"
       hash: 7c8121a7f695f0e019bf40c4e52851daca52f401
       body: ""
