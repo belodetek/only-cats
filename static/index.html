@@ -95,6 +95,28 @@
 				</button>
 			</div>
 
+            <!-- Backend Offline / Reconnecting Banner -->
+			<div
+				id="offline-banner"
+				role="status"
+				aria-live="polite"
+				class="hidden rounded-xl px-3.5 py-2.5 bg-amber-950/85 border border-amber-700/80 text-amber-100 text-xs flex items-center justify-between gap-3"
+			>
+				<div class="flex items-center gap-2 min-w-0">
+					<i data-lucide="wifi-off" class="w-4 h-4 text-amber-400 shrink-0"></i>
+					<span id="offline-banner-text" class="truncate"
+						>Backend unreachable. Retrying…</span
+					>
+				</div>
+				<button
+					id="btn-retry-backend"
+					type="button"
+					class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-semibold shrink-0 cursor-pointer transition-colors"
+				>
+					Retry Now
+				</button>
+			</div>
+
 			<div class="grid grid-cols-2 gap-4 sm:gap-5">
 				<!-- 1. LOCK -->
 				<button

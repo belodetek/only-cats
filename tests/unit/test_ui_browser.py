@@ -768,3 +768,47 @@ def test_ui_shows_update_banner_when_server_ui_version_changes(
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     expect(page.locator("#update-banner")).to_be_visible()
     expect(page.locator("#btn-refresh-ui")).to_be_visible()
+
+
+def test_ui_disables_backend_features_when_offline_and_recovers_via_backoff(
+    page: Page, live_ui_server
+):
+    """Verify 502/network failure shows #offline-banner, disables controls, and auto-recovers."""
+    base_url, _ = live_ui_server
+    stub_external_cdns(page, base_url)
+
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    expect(page.locator("#status-text")).to_have_text("Unlocked")
+    expect(page.locator("#offline-banner")).to_be_hidden()
+
+    # Simulate backend going down (Traefik 502 on /health and /ui/*)
+    def _fail_backend(route):
+        route.fulfill(status=502, body="Bad Gateway")
+
+    page.route(f"{base_url}/health", _fail_backend)
+    page.route(f"{base_url}/ui/**", _fail_backend)
+
+    # Trigger a backend call -> UI transitions to Offline and disables backend controls
+    page.locator("#btn-info").click()
+    expect(page.locator("#offline-banner")).to_be_visible()
+    expect(page.locator("#status-text")).to_have_text("Offline")
+    for selector in (
+        "#btn-lock",
+        "#btn-unlock",
+        "#btn-auto",
+        "#btn-info",
+        "#btn-drawer",
+        "#btn-dataset",
+    ):
+        expect(page.locator(selector)).to_be_disabled()
+
+    # Restore backend -> exponential backoff probe automatically re-enables UI
+    page.unroute(f"{base_url}/health", _fail_backend)
+    page.unroute(f"{base_url}/ui/**", _fail_backend)
+
+    expect(page.locator("#offline-banner")).to_be_hidden(timeout=6000)
+    expect(page.locator("#status-text")).to_have_text("Unlocked")
+    expect(page.locator("#btn-lock")).to_be_enabled()
+    expect(page.locator("#btn-info")).to_be_enabled()
+    expect(page.locator("#btn-drawer")).to_be_enabled()
+    expect(page.locator("#btn-dataset")).to_be_enabled()

@@ -99,6 +99,19 @@ document.addEventListener("DOMContentLoaded", () => {
 	const btnRefreshUi = document.getElementById("btn-refresh-ui");
 	const loadedUiVersion = document.body?.dataset?.uiVersion || "";
 
+	const offlineBanner = document.getElementById("offline-banner");
+	const offlineBannerText = document.getElementById("offline-banner-text");
+	const btnRetryBackend = document.getElementById("btn-retry-backend");
+
+	const BACKOFF_BASE_MS = 1000;
+	const BACKOFF_MAX_MS = 15000;
+	const backendConnState = {
+		online: true,
+		attempt: 0,
+		retryTimer: null,
+		inFlight: false,
+	};
+
 	let drawerPollTimer = null;
 
 	function checkUiVersion(serverVersion) {
@@ -127,7 +140,16 @@ document.addEventListener("DOMContentLoaded", () => {
 		if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
 			headers["X-Requested-With"] = "fetch";
 		}
-		const resp = await fetch(url, { ...options, headers });
+		let resp;
+		try {
+			resp = await fetch(url, { ...options, headers });
+		} catch (err) {
+			handleBackendOffline();
+			throw err;
+		}
+		if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+			handleBackendOffline();
+		}
 		if (resp.status === 401) {
 			const rd = encodeURIComponent(
 				window.location.pathname + window.location.search,
@@ -221,6 +243,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			return;
 		}
 		const es = new EventSource("/ui/dataset/events");
+		es.addEventListener("open", () => {
+			if (!backendConnState.online) {
+				backendConnState.attempt = 0;
+				probeBackendHealth();
+			}
+		});
 		es.addEventListener("dataset", (ev) => {
 			try {
 				const data = JSON.parse(ev.data);
@@ -253,6 +281,11 @@ document.addEventListener("DOMContentLoaded", () => {
 				checkUiVersion(data.ui_version);
 			} catch (_err) {
 				// Ignore malformed SSE frames
+			}
+		});
+		es.addEventListener("error", () => {
+			if (backendConnState.online) {
+				probeBackendHealth();
 			}
 		});
 		window.addEventListener("beforeunload", () => es.close(), { once: true });
@@ -569,6 +602,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			footerState.modelDate = modelMeta.short_date || "";
 			renderFooterMeta();
 			updateStatusBadge(data);
+			handleBackendRecovered();
 
 			if (
 				healthPanel &&
@@ -644,6 +678,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				healthPanel.classList.remove("hidden");
 			}
 		} catch (err) {
+			handleBackendOffline();
 			setLockControlsEnabled(false);
 			if (statusBadge && statusDot && statusText) {
 				statusBadge.className =
@@ -1240,6 +1275,123 @@ document.addEventListener("DOMContentLoaded", () => {
 			);
 		}
 	}
+
+	function setBackendFeatureControlsEnabled(enabled) {
+		for (const btn of [btnInfo, btnDrawer, btnDataset]) {
+			if (btn) {
+				btn.disabled = !enabled;
+			}
+		}
+		if (!enabled) {
+			setLockControlsEnabled(false);
+		}
+	}
+
+	function clearBackendRetryTimer() {
+		if (backendConnState.retryTimer) {
+			clearTimeout(backendConnState.retryTimer);
+			backendConnState.retryTimer = null;
+		}
+	}
+
+	function scheduleBackendRetry() {
+		clearBackendRetryTimer();
+		const expDelay = Math.min(
+			BACKOFF_MAX_MS,
+			BACKOFF_BASE_MS * 2 ** backendConnState.attempt,
+		);
+		// Full jitter (50%..100% of exponential cap) prevents thundering-herd retries
+		const delayMs = Math.round(expDelay * (0.5 + Math.random() * 0.5));
+		backendConnState.attempt += 1;
+
+		if (offlineBannerText) {
+			const sec = Math.max(1, Math.round(delayMs / 1000));
+			offlineBannerText.textContent = `Backend offline · retrying in ${sec}s…`;
+		}
+		backendConnState.retryTimer = setTimeout(() => {
+			backendConnState.retryTimer = null;
+			probeBackendHealth();
+		}, delayMs);
+	}
+
+	function handleBackendOffline() {
+		const wasOnline = backendConnState.online;
+		backendConnState.online = false;
+		setBackendFeatureControlsEnabled(false);
+
+		if (statusBadge && statusDot && statusText) {
+			statusBadge.className =
+				"flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900/60 border border-slate-800 text-slate-400 opacity-75";
+			statusDot.className =
+				"w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
+			statusText.textContent = "Offline";
+		}
+		if (offlineBanner) {
+			offlineBanner.classList.remove("hidden");
+		}
+		if (wasOnline && drawerPollTimer) {
+			clearInterval(drawerPollTimer);
+			drawerPollTimer = null;
+		}
+		scheduleBackendRetry();
+	}
+
+	function handleBackendRecovered() {
+		const wasOffline = !backendConnState.online;
+		backendConnState.online = true;
+		backendConnState.attempt = 0;
+		clearBackendRetryTimer();
+		setBackendFeatureControlsEnabled(true);
+
+		if (offlineBanner) {
+			offlineBanner.classList.add("hidden");
+		}
+		if (wasOffline) {
+			loadUiConfig();
+			loadDataset(false);
+			if (telemetryDrawer && !telemetryDrawer.classList.contains("hidden")) {
+				fetchDrawerMetrics();
+				drawerPollTimer = setInterval(fetchDrawerMetrics, 4000);
+			}
+		}
+	}
+
+	async function probeBackendHealth() {
+		if (backendConnState.inFlight) {
+			return;
+		}
+		backendConnState.inFlight = true;
+		if (offlineBannerText && !backendConnState.online) {
+			offlineBannerText.textContent = "Reconnecting to backend…";
+		}
+		try {
+			await fetchHealth(false);
+		} finally {
+			backendConnState.inFlight = false;
+		}
+	}
+
+	if (btnRetryBackend) {
+		btnRetryBackend.addEventListener("click", () => {
+			backendConnState.attempt = 0;
+			clearBackendRetryTimer();
+			probeBackendHealth();
+		});
+	}
+
+	window.addEventListener("online", () => {
+		if (!backendConnState.online) {
+			backendConnState.attempt = 0;
+			probeBackendHealth();
+		}
+	});
+
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "visible" && !backendConnState.online) {
+			backendConnState.attempt = 0;
+			probeBackendHealth();
+		}
+	});
 
 	if (btnLock) {
 		btnLock.addEventListener("click", () =>
