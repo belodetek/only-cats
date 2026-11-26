@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Footer on mobile"
+      hash: d34a10e30dd56e28718dc22613a751827a88bb63
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.27
+  title: ""
+  date: 2026-11-26T18:50:43.756Z
+- commits:
     - subject: "patch: Refresh training images (SSE)"
       hash: 4fd030e38dbc8c405af6df01559b3b424f8f2abf
       body: ""

@@ -20,4 +20,4 @@ data:
   supportedDeviceTypes:
     - generic-amd64
     - generic-aarch64
-version: 0.1.26
+version: 0.1.27
