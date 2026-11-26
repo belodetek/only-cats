@@ -242,10 +242,22 @@ document.addEventListener("DOMContentLoaded", () => {
 		if (typeof EventSource === "undefined") {
 			return;
 		}
-		const es = new EventSource("/ui/dataset/events");
+		const es = new EventSource("/ui/dataset/events", { withCredentials: true });
+		let sseOpened = false;
 		es.addEventListener("open", () => {
+			sseOpened = true;
 			if (!backendConnState.online) {
 				backendConnState.attempt = 0;
+				probeBackendHealth();
+			}
+		});
+		es.addEventListener("error", () => {
+			if (!sseOpened) {
+				es.close();
+				loadUiConfig();
+				return;
+			}
+			if (backendConnState.online) {
 				probeBackendHealth();
 			}
 		});
@@ -281,11 +293,6 @@ document.addEventListener("DOMContentLoaded", () => {
 				checkUiVersion(data.ui_version);
 			} catch (_err) {
 				// Ignore malformed SSE frames
-			}
-		});
-		es.addEventListener("error", () => {
-			if (backendConnState.online) {
-				probeBackendHealth();
 			}
 		});
 		window.addEventListener("beforeunload", () => es.close(), { once: true });
@@ -580,9 +587,9 @@ document.addEventListener("DOMContentLoaded", () => {
 			checkUiVersion(cfg.ui_version);
 			if (cfg.dispenser_url) {
 				btnDispenser.classList.remove("hidden");
-				btnDispenser.addEventListener("click", () => {
+				btnDispenser.onclick = () => {
 					window.location.assign(cfg.dispenser_url);
-				});
+				};
 			}
 		} catch (_err) {
 			// Leave dispenser button hidden if config cannot be loaded
@@ -601,8 +608,8 @@ document.addEventListener("DOMContentLoaded", () => {
 			footerState.firmwareVersion = fw.version || "";
 			footerState.modelDate = modelMeta.short_date || "";
 			renderFooterMeta();
-			updateStatusBadge(data);
 			handleBackendRecovered();
+			updateStatusBadge(data);
 
 			if (
 				healthPanel &&
@@ -679,13 +686,6 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 		} catch (err) {
 			handleBackendOffline();
-			setLockControlsEnabled(false);
-			if (statusBadge && statusDot && statusText) {
-				statusBadge.className =
-					"flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900/60 border border-slate-800 text-slate-400 opacity-75";
-				statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
-				statusText.textContent = "Offline";
-			}
 			if (revealPanel) {
 				showToast(`Failed to fetch /health: ${err.message}`, "error");
 			}
