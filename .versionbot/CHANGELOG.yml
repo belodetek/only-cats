@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Pin product-os/flowzone action to ea03285"
+      hash: 19874421143ee0e299c3b2aeeb70315f4d1830b6
+      body: Update product-os/flowzone
+      footer: {}
+      author: belodetek[bot]
+      nested: []
+  version: 0.1.36
+  title: ""
+  date: 2026-11-27T20:19:22.602Z
+- commits:
     - subject: "patch: HiL reliability"
       hash: 781effae337fe8b79929c87a9064ccb2b25cc722
       body: ""
