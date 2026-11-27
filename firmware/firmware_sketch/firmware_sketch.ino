@@ -56,7 +56,21 @@ void setRelayState(bool energize) {
   }
 }
 
+#ifdef QEMU_HIL
+#include <esp_task_wdt.h>
+#endif
+
 void setup() {
+// modify watchdog behaviour under QEMU
+#ifdef QEMU_HIL
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = 30000,
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+    .trigger_panic = false,
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+#endif
+
   Serial.begin(115200);
   Serial.setRxFIFOFull(1);
 

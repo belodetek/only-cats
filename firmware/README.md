@@ -18,6 +18,8 @@
 
     commit_sha=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
 
+    arduino-lint firmware_sketch
+
     arduino-cli compile \
       --fqbn ${FQBN} \
       --build-property "build.extra_flags=-DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1 -DFW_VERSION=\"${commit_sha}\"" \

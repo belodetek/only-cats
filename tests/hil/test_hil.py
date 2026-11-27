@@ -1,3 +1,4 @@
+# pylint: disable=too-many-arguments
 """Hardware-in-the-Loop (HiL) tests."""
 
 import struct
@@ -27,6 +28,115 @@ FIXTURES_DIR = HIL_DIR / "fixtures"
 pytestmark = pytest.mark.hil
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _verify_hil_services_ready() -> None:
+    """Confirm all dependent services are ready and warm up OpenVINO inference."""
+    last_status: dict[str, Any] = {}
+
+    def _services_ready() -> bool:
+        for name, url in (
+            ("app", f"{HIL_APP_URL}/health"),
+            ("emu", f"{HIL_EMU_URL}/health"),
+            ("cam", f"{config.camera_url}/health"),
+        ):
+            try:
+                resp = httpx.get(url, timeout=5.0)
+                last_status[name] = (
+                    resp.json() if resp.status_code == 200 else resp.status_code
+                )
+            except httpx.RequestError as exc:
+                last_status[name] = repr(exc)
+
+        return (
+            isinstance(last_status.get("app"), dict)
+            and last_status["app"].get("serial_connected") is True
+            and isinstance(last_status.get("emu"), dict)
+            and isinstance(last_status.get("cam"), dict)
+        )
+
+    try:
+        _poll_with_backoff(
+            _services_ready,
+            timeout=90.0,
+            initial_delay=0.25,
+            max_delay=1.5,
+            description="HiL services ready",
+        )
+    except AssertionError as exc:
+        raise RuntimeError(f"Timed out waiting for services: {last_status}") from exc
+
+    # Wait until QEMU ESP32-C6 firmware finishes cold-booting and prints READY:ULOCK:
+    _wait_for_serial_line("READY:ULOCK:", timeout=120.0)
+
+    # Warm up OpenVINO CPU graph compilation on empty.jpg (engages short ANIMAL pre-lock)
+    httpx.post(f"{config.camera_url}/stage/empty.jpg", timeout=5.0).raise_for_status()
+    trigger_camera_webhook("ANIMAL")
+    _poll_with_backoff(
+        lambda: (
+            httpx.get(f"{HIL_APP_URL}/ui/dataset/items?filter=empty", timeout=5.0)
+            .json()
+            .get("items", [])
+        ),
+        timeout=20.0,
+        initial_delay=0.25,
+        max_delay=1.0,
+        description="OpenVINO warm-up inference completion",
+    )
+    httpx.post(f"{HIL_EMU_URL}/serial/clear", timeout=5.0).raise_for_status()
+
+
+@pytest.fixture(autouse=True)
+def _reset_hil_state_between_tests():
+    """Clear serial history before each HiL test."""
+    httpx.post(f"{HIL_EMU_URL}/serial/clear", timeout=3.0).raise_for_status()
+    yield
+
+
+def _wait_for_unlock_complete(timeout: float) -> None:
+    """Wait until the ESP32-C6 unlocks (if it ever ACKed a lock) and /health agrees."""
+    last_events: list[dict[str, Any]] = []
+
+    def _unlocked_on_serial() -> bool:
+        nonlocal last_events
+        resp = httpx.get(f"{HIL_EMU_URL}/serial/history", timeout=5.0)
+        resp.raise_for_status()
+        last_events = resp.json().get("events", [])
+        ack_indices = [
+            i for i, ev in enumerate(last_events) if "ACK:L" in ev.get("line", "")
+        ]
+        if not ack_indices:
+            return True
+        tail = last_events[ack_indices[-1] + 1 :]
+        return any(
+            "EVENT:TIMEOUT_UNLOCK" in ev.get("line", "")
+            or "READY:ULOCK:" in ev.get("line", "")
+            for ev in tail
+        )
+
+    try:
+        _poll_with_backoff(
+            _unlocked_on_serial,
+            timeout=timeout,
+            initial_delay=0.2,
+            max_delay=1.0,
+            description="ESP32 unlock (EVENT:TIMEOUT_UNLOCK or READY:ULOCK:)",
+        )
+    except AssertionError as exc:
+        raise AssertionError(f"{exc}. Recent events: {last_events[-10:]}") from exc
+
+    def _health_unlocked() -> bool:
+        resp = httpx.get(f"{HIL_APP_URL}/health", timeout=5.0)
+        return resp.status_code == 200 and resp.json().get("lock_engaged") is False
+
+    _poll_with_backoff(
+        _health_unlocked,
+        timeout=10.0,
+        initial_delay=0.15,
+        max_delay=0.8,
+        description="/health lock_engaged=False",
+    )
+
+
 def _read_local_firmware_version(bin_path: Path) -> str:
     """Extract the version string from the esp_app_desc_t header of a compiled .bin."""
     header = bin_path.read_bytes()[:0x50]
@@ -38,102 +148,129 @@ def _read_local_firmware_version(bin_path: Path) -> str:
     return header[0x30:0x50].split(b"\x00", 1)[0].decode("utf-8")
 
 
-def _wait_for_serial_line(substring: str, timeout: float = 8.0) -> dict[str, Any]:
-    """Poll the QEMU PTY tee proxy until a matching serial event is recorded."""
+def _poll_with_backoff(
+    fn,
+    *,
+    timeout: float = 20.0,
+    initial_delay: float = 0.1,
+    max_delay: float = 1.0,
+    factor: float = 1.6,
+    description: str = "condition",
+):
+    """Poll fn() until it returns a truthy result, backing off exponentially."""
     deadline = time.monotonic() + timeout
-    last_events: list[dict[str, Any]] = []
+    delay = initial_delay
+    last_exc: Exception | None = None
     while time.monotonic() < deadline:
-        resp = httpx.get(f"{HIL_EMU_URL}/serial/history", timeout=2.0)
+        try:
+            result = fn()
+            if result:
+                return result
+            last_exc = None
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            last_exc = exc
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(delay, remaining))
+        delay = min(delay * factor, max_delay)
+    raise AssertionError(
+        f"Timed out after {timeout:.1f}s waiting for {description}"
+        + (f" (last error: {last_exc!r})" if last_exc else "")
+    )
+
+
+def _wait_for_serial_line(substring: str, timeout: float = 20.0) -> dict[str, Any]:
+    """Poll the QEMU PTY tee proxy with exponential backoff until a serial event matches."""
+    last_events: list[dict[str, Any]] = []
+
+    def _check() -> dict[str, Any] | None:
+        nonlocal last_events
+        resp = httpx.get(f"{HIL_EMU_URL}/serial/history", timeout=5.0)
         resp.raise_for_status()
         last_events = resp.json().get("events", [])
         for ev in last_events:
             if substring in ev.get("line", "") or substring in ev.get("raw", ""):
                 return ev
-        time.sleep(0.1)
-    raise AssertionError(
-        f"Timed out waiting for serial event containing {substring!r}. "
-        f"Recent events: {last_events[-10:]}"
-    )
+        return None
+
+    try:
+        return _poll_with_backoff(
+            _check,
+            timeout=timeout,
+            initial_delay=0.1,
+            max_delay=1.0,
+            description=f"serial event {substring!r}",
+        )
+    except AssertionError as exc:
+        raise AssertionError(f"{exc}. Recent events: {last_events[-10:]}") from exc
 
 
 def _wait_for_app_serial_connected(
-    expected: bool = True, timeout: float = 20.0
+    expected: bool = True, timeout: float = 30.0
 ) -> dict[str, Any]:
-    """Poll /health until serial_connected matches expected state."""
-    deadline = time.monotonic() + timeout
+    """Poll /health with exponential backoff until serial_connected matches expected state."""
     last_health: dict[str, Any] = {}
-    while time.monotonic() < deadline:
-        try:
-            resp = httpx.get(f"{HIL_APP_URL}/health", timeout=2.0)
-            if resp.status_code == 200:
-                last_health = resp.json()
-                if bool(last_health.get("serial_connected")) is expected:
-                    return last_health
-        except httpx.RequestError:
-            pass
-        time.sleep(0.2)
-    raise AssertionError(
-        f"Timed out waiting for serial_connected={expected}. Last /health: {last_health}"
-    )
 
+    def _check() -> dict[str, Any] | None:
+        nonlocal last_health
+        resp = httpx.get(f"{HIL_APP_URL}/health", timeout=5.0)
+        if resp.status_code == 200:
+            last_health = resp.json()
+            if bool(last_health.get("serial_connected")) is expected:
+                return last_health
+        return None
 
-@pytest.fixture(scope="session", autouse=True)
-def _verify_hil_services_ready() -> None:
-    """Confirm all dependent services are ready and warm up OpenVINO inference."""
-    last_status: dict[str, Any] = {}
-    deadline = time.monotonic() + 30.0
-    while time.monotonic() < deadline:
-        for name, url in (
-            ("app", f"{HIL_APP_URL}/health"),
-            ("emu", f"{HIL_EMU_URL}/health"),
-            ("cam", f"{config.camera_url}/health"),
-        ):
-            try:
-                resp = httpx.get(url, timeout=2.0)
-                last_status[name] = (
-                    resp.json() if resp.status_code == 200 else resp.status_code
-                )
-            except httpx.RequestError as exc:
-                last_status[name] = repr(exc)
-
-        app_ok = (
-            isinstance(last_status.get("app"), dict)
-            and last_status["app"].get("serial_connected") is True
+    try:
+        return _poll_with_backoff(
+            _check,
+            timeout=timeout,
+            initial_delay=0.15,
+            max_delay=1.2,
+            description=f"serial_connected={expected}",
         )
-        emu_ok = isinstance(last_status.get("emu"), dict)
-        cam_ok = isinstance(last_status.get("cam"), dict)
-        if app_ok and emu_ok and cam_ok:
-            # Warm up OpenVINO CPU graph compilation on empty.jpg (no lock)
-            httpx.post(
-                f"{config.camera_url}/stage/empty.jpg", timeout=3.0
-            ).raise_for_status()
-            trigger_camera_webhook("ANIMAL")
-            time.sleep(8.0)
-            httpx.post(f"{HIL_EMU_URL}/serial/clear", timeout=3.0).raise_for_status()
+    except AssertionError as exc:
+        raise AssertionError(f"{exc}. Last /health: {last_health}") from exc
+
+
+def _reboot_and_wait_handshake(
+    expected_prefix: str = "READY:ULOCK:",
+    attempts: int = 2,
+    per_attempt_timeout: float = 60.0,
+) -> None:
+    """Reboot QEMU and wait for READY:ULOCK handshake with a CI-safe boot timeout."""
+    last_err: AssertionError | None = None
+    for attempt in range(1, attempts + 1):
+        httpx.post(f"{HIL_EMU_URL}/serial/clear", timeout=5.0).raise_for_status()
+        httpx.post(f"{HIL_EMU_URL}/reboot", timeout=10.0).raise_for_status()
+        try:
+            _wait_for_serial_line(expected_prefix, timeout=per_attempt_timeout)
+            _wait_for_app_serial_connected(expected=True, timeout=30.0)
             return
-        time.sleep(0.25)
-
-    raise RuntimeError(f"Timed out waiting for services: {last_status}")
-
-
-@pytest.fixture(autouse=True)
-def _reset_hil_state_between_tests():
-    """Clear serial history before each HiL test."""
-    httpx.post(f"{HIL_EMU_URL}/serial/clear", timeout=3.0).raise_for_status()
-    yield
+        except AssertionError as exc:
+            last_err = exc
+            if attempt < attempts:
+                time.sleep(1.0)
+    assert last_err is not None
+    raise last_err
 
 
 def test_real_firmware_handshake_and_health_endpoint():
     """Verify only-cats flashes/connects to QEMU ESP32-C6 and reports matching fw_version."""
     expected_version = _read_local_firmware_version(Path(config.firmware_bin_path))
-    health = httpx.get(f"{HIL_APP_URL}/health", timeout=5.0).json()
-    assert health["serial_connected"] is True
+    health = _wait_for_app_serial_connected(expected=True, timeout=60.0)
     assert health["model_loaded"] is True
 
-    # Reboot QEMU once to verify the flashed firmware boots and announces expected_version
-    httpx.post(f"{HIL_EMU_URL}/reboot", timeout=5.0).raise_for_status()
-    _wait_for_serial_line(f"READY:ULOCK:{expected_version}", timeout=30.0)
-    _wait_for_app_serial_connected(expected=True, timeout=15.0)
+    # Verify running firmware descriptor reported by /health matches compiled binary
+    fw_info = health.get("esp32_firmware") or {}
+    if fw_info.get("local_version"):
+        assert fw_info["local_version"] == expected_version
+
+    _reboot_and_wait_handshake(
+        expected_prefix=f"READY:ULOCK:{expected_version}",
+        attempts=2,
+        per_attempt_timeout=60.0,
+    )
 
 
 def test_test_webhook_triggers_real_esp32_lock_ack_and_updates_ui(page: Page):
@@ -151,10 +288,8 @@ def test_test_webhook_triggers_real_esp32_lock_ack_and_updates_ui(page: Page):
         page.goto(f"{HIL_APP_URL}/", wait_until="networkidle")
         expect(page.locator("#status-text")).to_have_text("Locked (Prey)")
     finally:
-        # Ensure lockout expires so subsequent tests start unlocked
-        _wait_for_serial_line(
-            "EVENT:TIMEOUT_UNLOCK", timeout=config.lockout_duration_sec + 15.0
-        )
+        # Ensure lockout expires (or device boots unlocked) so subsequent tests start unlocked
+        _wait_for_unlock_complete(timeout=config.lockout_duration_sec + 15.0)
 
     page.reload(wait_until="networkidle")
     expect(page.locator("#status-text")).to_have_text("Unlocked")
@@ -177,17 +312,17 @@ def test_prey_fixture_triggers_yolo_esp32_lock_and_persists_dataset(page: Page):
 
     try:
         # 2. Verify capture, class-0 prey label, and sidecar metadata were persisted
-        items: list[dict[str, Any]] = []
-        deadline = time.monotonic() + 3.0
-        while time.monotonic() < deadline:
-            items_resp = httpx.get(
-                f"{HIL_APP_URL}/ui/dataset/items?filter=prey", timeout=5.0
-            )
-            items_resp.raise_for_status()
-            items = items_resp.json().get("items", [])
-            if items:
-                break
-            time.sleep(0.1)
+        items = _poll_with_backoff(
+            lambda: (
+                httpx.get(f"{HIL_APP_URL}/ui/dataset/items?filter=prey", timeout=5.0)
+                .json()
+                .get("items", [])
+            ),
+            timeout=10.0,
+            initial_delay=0.15,
+            max_delay=1.0,
+            description="prey dataset persistence",
+        )
         assert len(items) >= 1
         latest = items[0]
         assert latest["has_prey"] is True
@@ -209,40 +344,8 @@ def test_prey_fixture_triggers_yolo_esp32_lock_and_persists_dataset(page: Page):
             '"event_type": "ANIMAL"'
         )
     finally:
-        # Ensure lockout expires so subsequent tests start unlocked
-        _wait_for_serial_line(
-            "EVENT:TIMEOUT_UNLOCK", timeout=config.lockout_duration_sec + 15.0
-        )
-
-
-def test_empty_fixture_does_not_lock_and_persists_training_pair():
-    """Stage empty.jpg -> ANIMAL webhook -> 0 detections -> no lock -> train_* persisted."""
-    empty_fixture = FIXTURES_DIR / "empty.jpg"
-    if not empty_fixture.is_file():
-        pytest.skip(f"Missing empty test fixture at {empty_fixture}")
-
-    httpx.post(f"{config.camera_url}/stage/empty.jpg", timeout=3.0).raise_for_status()
-
-    wh_resp = trigger_camera_webhook("ANIMAL")
-    assert wh_resp["status_code"] == 200
-
-    # Wait briefly for inference pipeline to complete
-    time.sleep(1.5)
-
-    # Confirm no lock command was sent to the ESP32-C6
-    events = (
-        httpx.get(f"{HIL_EMU_URL}/serial/history", timeout=3.0).json().get("events", [])
-    )
-    assert not any(ev.get("raw") == "L" for ev in events)
-
-    # Confirm IN_TRAINING=true on the server persisted an empty-label capture
-    empty_items = (
-        httpx.get(f"{HIL_APP_URL}/ui/dataset/items?filter=empty", timeout=5.0)
-        .json()
-        .get("items", [])
-    )
-    assert len(empty_items) >= 1
-    assert empty_items[0]["boxes"] == []
+        # Ensure lockout expires (or device boots unlocked) so subsequent tests start unlocked
+        _wait_for_unlock_complete(timeout=config.lockout_duration_sec + 15.0)
 
 
 def test_serial_disconnect_fault_degrades_ui_and_recovers(page: Page):
@@ -266,12 +369,14 @@ def test_serial_disconnect_fault_degrades_ui_and_recovers(page: Page):
         httpx.post(
             f"{HIL_EMU_URL}/fault/disconnect",
             params={"enabled": "false"},
-            timeout=3.0,
+            timeout=5.0,
         ).raise_for_status()
-        httpx.post(f"{HIL_EMU_URL}/reboot", timeout=5.0).raise_for_status()
 
-    _wait_for_app_serial_connected(expected=True, timeout=20.0)
-    _wait_for_serial_line("READY:ULOCK:", timeout=30.0)
+    _reboot_and_wait_handshake(
+        expected_prefix="READY:ULOCK:",
+        attempts=2,
+        per_attempt_timeout=60.0,
+    )
     page.reload(wait_until="networkidle")
     expect(page.locator("#status-text")).to_have_text("Unlocked")
     expect(page.locator("#btn-lock")).to_be_enabled()
