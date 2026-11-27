@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Switch to dispatchSseFrame"
+      hash: b33bbdac71a4fd0748924ee49ae311e90c3aa5c6
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.31
+  title: ""
+  date: 2026-11-27T00:08:59.229Z
+- commits:
     - subject: "patch: (re)Train model"
       hash: a9c64d0f168b57961d26e24b6104ef258f7a8312
       body: ""
