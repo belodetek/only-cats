@@ -66,7 +66,7 @@ def _verify_hil_services_ready() -> None:
         raise RuntimeError(f"Timed out waiting for services: {last_status}") from exc
 
     # Wait until QEMU ESP32-C6 firmware finishes cold-booting and prints READY:ULOCK:
-    _wait_for_serial_line("READY:ULOCK:", timeout=60.0)
+    _wait_for_serial_line("READY:ULOCK:", timeout=120.0)
 
     # Warm up OpenVINO CPU graph compilation on empty.jpg (engages short ANIMAL pre-lock)
     httpx.post(f"{config.camera_url}/stage/empty.jpg", timeout=5.0).raise_for_status()

@@ -149,16 +149,19 @@ class EmulatorBridge:
                 "-global",
                 f"driver=esp32c6.gpio,property=strap_mode,value={strap_val}",
                 "-serial",
-                f"tcp:127.0.0.1:{QEMU_TCP_PORT},server,nowait",
+                f"tcp:127.0.0.1:{QEMU_TCP_PORT},server",
             ]
             # pylint: disable=consider-using-with
             self.qemu_proc = subprocess.Popen(cmd)
             # pylint: enable=consider-using-with
-            time.sleep(0.3)
 
             deadline = time.monotonic() + 20.0
-            delay = 0.05
+            delay = 0.01
             while time.monotonic() < deadline:
+                if self.qemu_proc.poll() is not None:
+                    raise RuntimeError(
+                        f"QEMU exited prematurely with code {self.qemu_proc.returncode}"
+                    )
                 try:
                     sock = socket.create_connection(
                         ("127.0.0.1", QEMU_TCP_PORT), timeout=1.0
@@ -169,7 +172,7 @@ class EmulatorBridge:
                     return
                 except OSError:
                     time.sleep(delay)
-                    delay = min(delay * 2, 0.5)
+                    delay = min(delay * 1.5, 0.2)
             self._stop_qemu_unlocked()
             raise RuntimeError("Timed out waiting for QEMU ESP32-C6 serial socket")
 
@@ -304,11 +307,15 @@ class EmulatorBridge:
                 await self._send_all_with_backoff(from_app)
             if self.download_mode:
                 self.last_download_activity_ts = time.monotonic()
+                self.tx_slip_buf.extend(from_app)
+                if len(self.tx_slip_buf) > 256:
+                    del self.tx_slip_buf[:-256]
                 if (
-                    SLIP_FLASH_END_FRAME in from_app
-                    or SLIP_FLASH_DEFL_END_FRAME in from_app
+                    SLIP_FLASH_END_FRAME in self.tx_slip_buf
+                    or SLIP_FLASH_DEFL_END_FRAME in self.tx_slip_buf
                 ):
-                    await asyncio.sleep(0.3)
+                    self.tx_slip_buf.clear()
+                    await asyncio.sleep(0.2)
                     await asyncio.to_thread(self.start_qemu, False)
         except (BlockingIOError, InterruptedError):
             pass
