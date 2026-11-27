@@ -61,6 +61,10 @@ allowed_alarm_types: set[str] = {
     if item.strip()
 }
 
+cat_model_weights_path: str = os.getenv(
+    "CAT_MODEL_WEIGHTS_PATH", "weights/yolo26s_int8_openvino_model"
+)
+cat_conf_threshold: float = float(os.getenv("CAT_CONF_THRESHOLD", "0.20"))
 model_weights_path: str = os.getenv("MODEL_WEIGHTS_PATH", "weights/best_openvino_model")
 data_root: str = os.getenv("DATA_DIR", "/data")
 images_dir = os.path.join(data_root, os.getenv("IMAGES_DIR", "images"))

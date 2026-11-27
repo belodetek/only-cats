@@ -25,6 +25,7 @@ class AppState:
     eval_semaphore: Optional[asyncio.Semaphore] = None
     http_client: Optional[httpx.AsyncClient] = None
     model_metadata: dict[str, Any] = field(default_factory=dict)
+    cat_model: Optional[YOLO] = None
     model: Optional[YOLO] = None
     pending_evaluations: int = 0
     prelock_cooldown_until: float = 0.0
