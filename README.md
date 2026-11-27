@@ -64,9 +64,16 @@ and balenaCloud public device URLs (`*.balena-devices.com`):
                                                   | 5. cv2.imdecode()
                                                   |    Decode buffer to array
                                                   |
-                                                  | 6. YOLO / OpenVINO Infer
-                                                  |    Predict bounding boxes
-                                                  |
+                                                  | 6. Two-Stage Cascade Infer
+                                                  |    6a. Stage 2 Full-Frame:
+                                                  |        Prey OpenVINO model
+                                                  |    6b. Stage 1 Cat Gate:
+                                                  |        yolo26s INT8 OpenVINO
+                                                  |        (classes=[15, 16])
+                                                  |        -> +20% padded ROI crop(s)
+                                                  |    6c. Stage 2 Crop Infer:
+                                                  |        Prey model on cat crop(s)
+                                                  |        -> Remap [0,1] + IoU NMS
                                                   |
                                            [Prey Detected?]
                                             /            \
