@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Correct SSE behind publci device URLs"
+      hash: cb0ff093bf29ec3b1689785adff5037488676c2b
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.32
+  title: ""
+  date: 2026-11-27T02:01:59.618Z
+- commits:
     - subject: "patch: Switch to dispatchSseFrame"
       hash: b33bbdac71a4fd0748924ee49ae311e90c3aa5c6
       body: ""
