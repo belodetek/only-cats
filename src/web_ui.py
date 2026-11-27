@@ -121,7 +121,9 @@ async def ui_dataset_events(request: Request) -> StreamingResponse:
         idle_ticks = 0
         try:
             yield ": connected\n\n"
-            yield f": {' ' * 2048}\n\n"
+            # 8KB comment padding pushes past Balena's *.balena-devices.com HTTP/2
+            # edge proxy buffer so response headers and initial events flush immediately.
+            yield f": {' ' * 8192}\n\n"
             yield f"event: version\ndata: {json.dumps({'ui_version': initial_version})}\n\n"
             while not _SHUTDOWN_EVENT.is_set():
                 if await request.is_disconnected():
@@ -142,7 +144,8 @@ async def ui_dataset_events(request: Request) -> StreamingResponse:
         _event_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
+            "Content-Encoding": "identity",
             "X-Accel-Buffering": "no",
         },
     )
