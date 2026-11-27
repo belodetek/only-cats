@@ -4,6 +4,7 @@
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -17,11 +18,69 @@ import dataset
 from metrics import METRICS
 from notifications import persist_and_notify
 from state import AppState
-from vision import compute_sharpness, run_inference
+from vision import (
+    CascadeConfig,
+    FusedDetection,
+    compute_sharpness,
+    run_cascade_inference,
+    run_inference,
+)
 
 logger = logging.getLogger(config.app_name)
 
 _MAX_PENDING_EVALUATIONS = 1
+
+
+class _TensorShim:
+    """Minimal numpy/tensor wrapper supporting .cpu().numpy() for Ultralytics compatibility."""
+
+    def __init__(self, arr: np.ndarray) -> None:
+        self._arr = arr
+
+    def cpu(self) -> "_TensorShim":
+        """Return self to mirror PyTorch Tensor.cpu()."""
+        return self
+
+    def numpy(self) -> np.ndarray:
+        """Return underlying NumPy array."""
+        return self._arr
+
+
+class _CascadeBoxes:  # pylint: disable=too-few-public-methods
+    """Adapter exposing fused full-frame boxes with Ultralytics .boxes attributes."""
+
+    def __init__(self, detections: list[FusedDetection]) -> None:
+        self._count = len(detections)
+        if detections:
+            xywhn = np.array(
+                [[d.x, d.y, d.w, d.h] for d in detections], dtype=np.float32
+            )
+            cls_arr = np.array([d.cls for d in detections], dtype=np.float32)
+            conf_arr = np.array([d.confidence for d in detections], dtype=np.float32)
+        else:
+            xywhn = np.zeros((0, 4), dtype=np.float32)
+            cls_arr = np.zeros((0,), dtype=np.float32)
+            conf_arr = np.zeros((0,), dtype=np.float32)
+        self.xywhn = _TensorShim(xywhn)
+        self.cls = _TensorShim(cls_arr)
+        self.conf = _TensorShim(conf_arr)
+
+    def __len__(self) -> int:
+        return self._count
+
+
+@dataclass
+class _CascadeResult:  # pylint: disable=too-few-public-methods
+    """Lightweight Ultralytics Results-compatible container for fused cascade detections."""
+
+    boxes: _CascadeBoxes
+
+
+@dataclass
+class _CascadeResult:
+    """Lightweight Ultralytics Results-compatible container for fused cascade detections."""
+
+    boxes: _CascadeBoxes
 
 
 def _extract_detections(
@@ -185,10 +244,28 @@ async def _run_evaluation_pipeline(
         raw_bytes = resp.content
         img_array = np.frombuffer(raw_bytes, dtype=np.uint8)
 
+        # run inference block
         t1 = time.perf_counter()
-        img, results = await asyncio.to_thread(
-            run_inference, state.model, img_array, config.conf_threshold
-        )
+        cat_model = getattr(state, "cat_model", None)
+        if cat_model is not None:
+            cascade = CascadeConfig(
+                cat_model=cat_model, cat_conf=config.cat_conf_threshold
+            )
+            img, fused = await asyncio.to_thread(
+                run_cascade_inference,
+                state.model,
+                img_array,
+                config.conf_threshold,
+                cascade,
+            )
+            top_result = (
+                _CascadeResult(boxes=_CascadeBoxes(fused)) if img is not None else None
+            )
+        else:
+            img, results = await asyncio.to_thread(
+                run_inference, state.model, img_array, config.conf_threshold
+            )
+            top_result = results[0] if results else None
         infer_ms = (time.perf_counter() - t1) * 1000
         METRICS.yolo_infer_seconds.observe(infer_ms / 1000.0)
 
@@ -199,7 +276,6 @@ async def _run_evaluation_pipeline(
         is_test = bool(
             webhook_event and str(webhook_event.get("alarm_type", "")).upper() == "TEST"
         )
-        top_result = results[0] if results else None
         detected_classes, detections = _extract_detections(state.model, top_result)
 
         if detections:

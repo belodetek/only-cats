@@ -175,7 +175,7 @@ async def lifespan(app_instance: FastAPI):
         state.model_metadata = load_model_metadata(config.model_weights_path)
         if state.model_metadata:
             logger.info(
-                "Loaded custom weights from %s (date=%s, version=%s, task=%s, imgsz=%s)",
+                "Loaded custom weights (stage 2) from %s (date=%s, version=%s, task=%s, imgsz=%s)",
                 config.model_weights_path,
                 state.model_metadata.get("date", "unknown"),
                 state.model_metadata.get("version", "unknown"),
@@ -187,6 +187,12 @@ async def lifespan(app_instance: FastAPI):
     else:
         logger.error(
             "Weights file missing at %s! Check path.", config.model_weights_path
+        )
+
+    if os.path.exists(config.cat_model_weights_path):
+        state.cat_model = YOLO(config.cat_model_weights_path, task="detect")
+        logger.info(
+            "Loaded cat gate weights (stage 1) from %s", config.cat_model_weights_path
         )
 
     # Camera snapshots come from a self-signed LAN device, so this client skips
