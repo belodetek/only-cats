@@ -238,32 +238,27 @@ document.addEventListener("DOMContentLoaded", () => {
 		}, 2000);
 	}
 
-	function connectDatasetEventStream() {
-		if (typeof EventSource === "undefined") {
+	function dispatchSseFrame(rawFrame) {
+		let eventName = "message";
+		const dataLines = [];
+		for (const line of rawFrame.split(/\r?\n/)) {
+			if (!line || line.startsWith(":")) {
+				continue;
+			}
+			if (line.startsWith("event:")) {
+				eventName = line.slice(6).trim();
+			} else if (line.startsWith("data:")) {
+				dataLines.push(line.slice(5).trimStart());
+			}
+		}
+		if (!dataLines.length) {
 			return;
 		}
-		const es = new EventSource("/ui/dataset/events", { withCredentials: true });
-		let sseOpened = false;
-		es.addEventListener("open", () => {
-			sseOpened = true;
-			if (!backendConnState.online) {
-				backendConnState.attempt = 0;
-				probeBackendHealth();
-			}
-		});
-		es.addEventListener("error", () => {
-			if (!sseOpened) {
-				es.close();
-				loadUiConfig();
-				return;
-			}
-			if (backendConnState.online) {
-				probeBackendHealth();
-			}
-		});
-		es.addEventListener("dataset", (ev) => {
-			try {
-				const data = JSON.parse(ev.data);
+		try {
+			const data = JSON.parse(dataLines.join("\n"));
+			if (eventName === "version") {
+				checkUiVersion(data.ui_version);
+			} else if (eventName === "dataset") {
 				const total = Number(data.counts?.all ?? 0);
 				if (btnPurgeDataset) {
 					btnPurgeDataset.disabled = total === 0;
@@ -275,7 +270,6 @@ document.addEventListener("DOMContentLoaded", () => {
 				} else if (datasetCountBadge) {
 					datasetCountBadge.textContent = String(total);
 				}
-				// Refresh grid if drawer is open and user isn't mid-triage
 				const panelOpen =
 					datasetPanel && !datasetPanel.classList.contains("hidden");
 				const triageClosed =
@@ -283,19 +277,113 @@ document.addEventListener("DOMContentLoaded", () => {
 				if (panelOpen && triageClosed) {
 					loadDataset(false);
 				}
-			} catch (_err) {
-				// Ignore malformed SSE frames
 			}
+		} catch (_err) {
+			// Ignore malformed SSE frames
+		}
+	}
+
+	function connectDatasetEventStream() {
+		const abortController = new AbortController();
+		window.addEventListener("beforeunload", () => abortController.abort(), {
+			once: true,
 		});
-		es.addEventListener("version", (ev) => {
-			try {
-				const data = JSON.parse(ev.data);
-				checkUiVersion(data.ui_version);
-			} catch (_err) {
-				// Ignore malformed SSE frames
+
+		async function runFetchStream() {
+			let retryDelayMs = 1000;
+			while (!abortController.signal.aborted) {
+				try {
+					const resp = await apiFetch("/ui/dataset/events", {
+						headers: { Accept: "text/event-stream" },
+						cache: "no-store",
+						signal: abortController.signal,
+					});
+					if (!resp.ok || !resp.body) {
+						throw new Error(`HTTP ${resp.status}`);
+					}
+					retryDelayMs = 1000;
+					if (!backendConnState.online) {
+						backendConnState.attempt = 0;
+						probeBackendHealth();
+					}
+					const reader = resp.body.getReader();
+					const decoder = new TextDecoder();
+					let buffer = "";
+					while (true) {
+						const { value, done } = await reader.read();
+						if (done) {
+							break;
+						}
+						buffer += decoder.decode(value, { stream: true });
+						const frames = buffer.split(/\r?\n\r?\n/);
+						buffer = frames.pop() ?? "";
+						for (const frame of frames) {
+							dispatchSseFrame(frame);
+						}
+					}
+				} catch (_err) {
+					if (abortController.signal.aborted) {
+						return;
+					}
+					if (backendConnState.online) {
+						probeBackendHealth();
+					}
+				}
+				await new Promise((resolve) => {
+					const timer = setTimeout(() => {
+						backendConnState.wakeSse = null;
+						resolve();
+					}, retryDelayMs);
+					backendConnState.wakeSse = () => {
+						clearTimeout(timer);
+						backendConnState.wakeSse = null;
+						retryDelayMs = 1000;
+						resolve();
+					};
+				});
+				retryDelayMs = Math.min(15000, retryDelayMs * 2);
 			}
-		});
-		window.addEventListener("beforeunload", () => es.close(), { once: true });
+		}
+
+		// Use native EventSource first (does not block Playwright networkidle and
+		// works natively over HTTP/1.1 & LAN); if an edge proxy (e.g. Balena
+		// *.balena-devices.com HTTP/2 proxy) rejects EventSource before open,
+		// automatically fall back to the streaming fetch() reader.
+		if (typeof EventSource !== "undefined") {
+			const es = new EventSource("/ui/dataset/events", {
+				withCredentials: true,
+			});
+			let sseOpened = false;
+			abortController.signal.addEventListener("abort", () => es.close(), {
+				once: true,
+			});
+			es.addEventListener("open", () => {
+				sseOpened = true;
+				if (!backendConnState.online) {
+					backendConnState.attempt = 0;
+					probeBackendHealth();
+				}
+			});
+			es.addEventListener("dataset", (ev) => {
+				dispatchSseFrame(`event: dataset\ndata: ${ev.data}`);
+			});
+			es.addEventListener("version", (ev) => {
+				dispatchSseFrame(`event: version\ndata: ${ev.data}`);
+			});
+			es.addEventListener("error", () => {
+				if (!sseOpened) {
+					es.close();
+					runFetchStream();
+					return;
+				}
+				if (backendConnState.online) {
+					probeBackendHealth();
+				}
+			});
+			return;
+		}
+
+		runFetchStream();
 	}
 
 	function setLockControlsEnabled(

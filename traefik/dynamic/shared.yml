@@ -124,5 +124,7 @@ http:
 
     iwatch-ulock-svc:
       loadBalancer:
+        responseForwarding:
+          flushInterval: -1
         servers:
           - url: http://iwatch-ulock:8000
