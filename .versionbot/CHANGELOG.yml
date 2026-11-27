@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: Update version not firing"
+      hash: dda48347cfd23d7041cccf33a4fabc2a6324df4b
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.34
+  title: ""
+  date: 2026-11-27T17:29:12.760Z
+- commits:
     - subject: "patch: (re)Train model from base"
       hash: fe752a97518343efab713bbffac86e091c0365d8
       body: ""
