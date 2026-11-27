@@ -46,7 +46,7 @@
 
     # .. or download dataset export from the Web UI and unpack to tune/
 
-    # generate draft labels (prey coordinates in image)
+    # generate draft labels (prey coordinates in image) or manually edit boxes
     python3 predict.py
 
     # .. and verify
@@ -55,8 +55,9 @@
     # fine tune the base weights
     python3 tune.py
 
-    # .. and test new weights against a test image (e.g. last missed prey detection)
-    python3 test.py --image "images/$(ls -t images/ | head -n 1)" --conf 0.55
+    # .. and test new weights against new training images
+    find verify -name train_*_boxed.* | sed 's/_boxed//g' | sed 's/verify/images/g' \
+      | xargs -L1 python3 test.py --image
 
 
 [scp-uuid]: https://github.com/pdcastro/ssh-uuid#file-transfer-with-scp
