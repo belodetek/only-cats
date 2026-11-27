@@ -1,4 +1,14 @@
 - commits:
+    - subject: "patch: HiL reliability"
+      hash: 781effae337fe8b79929c87a9064ccb2b25cc722
+      body: ""
+      footer: {}
+      author: Anton Belodedenko
+      nested: []
+  version: 0.1.35
+  title: ""
+  date: 2026-11-27T18:12:54.096Z
+- commits:
     - subject: "patch: Update version not firing"
       hash: dda48347cfd23d7041cccf33a4fabc2a6324df4b
       body: ""
