@@ -119,12 +119,13 @@ async def ui_dataset_events(request: Request) -> StreamingResponse:
 
     async def _event_stream():
         idle_ticks = 0
+        last_version = initial_version
         try:
             yield ": connected\n\n"
             # 8KB comment padding pushes past Balena's *.balena-devices.com HTTP/2
             # edge proxy buffer so response headers and initial events flush immediately.
             yield f": {' ' * 8192}\n\n"
-            yield f"event: version\ndata: {json.dumps({'ui_version': initial_version})}\n\n"
+            yield f"event: version\ndata: {json.dumps({'ui_version': last_version})}\n\n"
             while not _SHUTDOWN_EVENT.is_set():
                 if await request.is_disconnected():
                     break
@@ -136,7 +137,13 @@ async def ui_dataset_events(request: Request) -> StreamingResponse:
                     idle_ticks += 1
                     if idle_ticks >= 25:
                         idle_ticks = 0
-                        yield ": keepalive\n\n"
+                        current_version = _compute_asset_version()
+                        if current_version != last_version:
+                            last_version = current_version
+                            payload = json.dumps({"ui_version": last_version})
+                            yield f"event: version\ndata: {payload}\n\n"
+                        else:
+                            yield ": keepalive\n\n"
         finally:
             unsubscribe_dataset_events(sub)
 

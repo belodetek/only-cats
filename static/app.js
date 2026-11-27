@@ -1474,10 +1474,23 @@ document.addEventListener("DOMContentLoaded", () => {
 		}
 	});
 
+	// Poll /ui/config periodically and on tab focus so new deployments surface
+	// #update-banner reliably even behind proxies that buffer SSE streams.
+	setInterval(() => {
+		if (backendConnState.online && document.visibilityState === "visible") {
+			loadUiConfig();
+		}
+	}, 30000);
+
 	document.addEventListener("visibilitychange", () => {
-		if (document.visibilityState === "visible" && !backendConnState.online) {
+		if (document.visibilityState !== "visible") {
+			return;
+		}
+		if (!backendConnState.online) {
 			backendConnState.attempt = 0;
 			probeBackendHealth();
+		} else {
+			loadUiConfig();
 		}
 	});
 
